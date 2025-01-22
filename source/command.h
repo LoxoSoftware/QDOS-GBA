@@ -13,6 +13,7 @@ char cmd_argv[CMD_TOKEN_SIZE*CMD_TOKEN_MAX];
 #include "tools.h"
 #include "console.h"
 #include "elflib.h"
+#include "binexec.h"
 
 void main_checkerr(int error)
 {
@@ -188,6 +189,9 @@ void execute_command(char* cmd)
     else
     if (!strcmp(cmdtok[0],"r"))
     {
+        //Run whatever it's at the multiboot entrypoint
+        //NOTE: This is for experimenting only
+        //TODO: Add the possibility to select an address
         asm("BL 0x02000000");
     }
     else if (tokc && strcmp(cmdtok[0],""))
@@ -204,50 +208,8 @@ void execute_command(char* cmd)
         if (!file) file= fs_getfileptr_trunc(cmdtok[0]);
         if (file)
         {
-            // //Execute command
-            // char ttype[5]= { 0, 0, 0, 0, 0 };
-            // memcpy(ttype, file->type, 4);
-            // console_printf("%h", (u32)&file->data);
-            // console_drawbuffer();
-            // if (!strcmp(ttype, "ptr"))
-            //     program= (void*)(*(u32*)(file->data));
-            // else
-            // if (!strcmp(ttype, "gba") || !strcmp(ttype, "mb"))
-            // {
-            //     //It would be a multiboot ROM
-            //     for (u32 i=0; i<read32(&file->size); i++)
-            //         *(u8*)(0x02000000+i)= *(u8*)((u32)&file->data+i);
-            //     program= (void*)0x02000000;
-            //     runtime_patch_code(program, read32(&file->size));
-            // }
-            // else
-            //     program= (void*)&(file->data);
-            // (*program)();
-            Elf32_Ehdr* exeptr= (Elf32_Ehdr*)&(file->data);
-            exe_t exetype= elf_check(exeptr);
-
-            switch (exetype)
-            {
-                case EXE_INVALIDARCH:
-                    console_printf("Invalid architecture&n");
-                    goto endparse;
-                case EXE_WRONGMAGIC:
-                    console_printf("Invalid ELF format: wrong magic&n");
-                    goto endparse;
-                case EXE_UNSUPPORTED:
-                    console_printf("Unsupported format&n");
-                    goto endparse;
-                case EXE_RELOC:
-                case EXE_STATIC:
-                    break;
-                default:
-                    console_printf("Invalid format&n");
-                    goto endparse;
-            }
-
-            //At this point the ELF should be good to execute
-            //elf_printSections(exeptr);
-            elf_runReloc(exeptr);
+            os_exec(file);
+            goto endparse;
         }
         if (!file)
         {
