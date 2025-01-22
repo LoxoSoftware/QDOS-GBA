@@ -1,4 +1,5 @@
 //define.h
+#include "gmklib.h"
 
 int __system_debuglevel = 0;
 

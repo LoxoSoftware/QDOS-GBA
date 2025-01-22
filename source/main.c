@@ -1,7 +1,18 @@
+//QDOS by LoxoSoftware, (c) 2024-2025
+
+//Libraries
+#include <gba.h>
 #include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include "define.h"
 #include "gmklib.h"
+#include "console.h"
+#include "command.h"
+#include "keyboard.h"
+#include "irq.h"
+#include "tools.h"
+#include "flashfs.h"
 
 #define OS_NAME 		"QDOS"
 #define OS_VERSION 		"0.0.6.0"
@@ -11,34 +22,6 @@
 #define ROMFS_DOMAIN    romfs, romfs_sz/sizeof(file_t*)
 
 ALIGN(16) const char save_type[16]= "FLASH1M_V420\0\0\0\0";
-
-void main_checkerr(int error) ;
-
-#include "include.h"
-
-void main_checkerr(int error)
-{
-	if(error != 0)
-	{
-		//console_colors(c_maroon, c_yellow, c_red);
-		console_redrawrow(__console_irow-1, "[ERR]");
-		console_printf("returned %d&n", error);
-		console_drawbuffer();
-		sleep(60);
-
-	} else if (!error)
-	{
-		console_redrawrow(__console_irow-1, "[OK ]");
-		console_drawbuffer();
-	}
-}
-
-void command_prompt() {
-
-	console_printf(__com_promptstr);
-	console_drawbuffer();
-	__com_prompt_active= false;
-}
 
 int main()
 {

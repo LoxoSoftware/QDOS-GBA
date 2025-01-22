@@ -4,6 +4,8 @@
 #ifndef CONSOLE_H
 #define CONSOLE_H
 
+#include "sprites.h"
+
 #define __console_charw 6
 #define __console_charh 9
 #define __console_charperw 40 //(SCREEN_WIDTH/__console_charw) //40

@@ -6,6 +6,9 @@
 #include "console.h"
 #include "keyboard.h"
 #include "command.h"
+#include "flashfs.h"
+
+void main_checkerr(int);
 
 typedef struct ostool_s
 {

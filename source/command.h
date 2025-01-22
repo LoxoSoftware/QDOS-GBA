@@ -14,6 +14,30 @@ char cmd_argv[CMD_TOKEN_SIZE*CMD_TOKEN_MAX];
 #include "console.h"
 #include "elflib.h"
 
+void main_checkerr(int error)
+{
+	if(error != 0)
+	{
+		//console_colors(c_maroon, c_yellow, c_red);
+		console_redrawrow(__console_irow-1, "[ERR]");
+		console_printf("returned %d&n", error);
+		console_drawbuffer();
+		sleep(60);
+
+	} else if (!error)
+	{
+		console_redrawrow(__console_irow-1, "[OK ]");
+		console_drawbuffer();
+	}
+}
+
+void command_prompt() {
+
+	console_printf(__com_promptstr);
+	console_drawbuffer();
+	__com_prompt_active= false;
+}
+
 int tokenstr(char* instr, char* tokens[])
 {
     int len= strlen(instr);

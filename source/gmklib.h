@@ -1,11 +1,11 @@
-#include <gba_console.h>
-#include <gba_video.h>
-#include <gba_interrupt.h>
-#include <gba_systemcalls.h>
-#include <gba_input.h>
+//GMKLIB by LoxoSoftware, (c) 2020-2025
+
+#ifndef GMKLIB_H
+#define GMKLIB_H
+
+#include <gba.h>
 #include <string.h>
 #include <stdarg.h>
-#include <gba_sprites.h>
 
 #define no_img			(u16*)0
 #define pressed			key_this != key_last
@@ -896,3 +896,4 @@ struct object {
 	}
 }*/
 
+#endif

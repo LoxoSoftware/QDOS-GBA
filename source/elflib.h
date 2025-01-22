@@ -3,6 +3,7 @@
 #define ELFLIB_H
 
 #include <elf.h>
+#include "flashfs.h"
 
 typedef enum {
     EXE_INVALIDARCH = -3,

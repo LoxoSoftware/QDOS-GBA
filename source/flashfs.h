@@ -1,5 +1,8 @@
 //flashfs.h
 
+#ifndef FLASHFS_H
+#define FLASHFS_H
+
 //TODO: Implement flash bank switching
 
 //NOTE: This will only allocate in SRAM, use standard allocator functions
@@ -492,3 +495,5 @@ u8 fs_check()
     //Returns false if filesystem is invalid
     return (read32(&fs_root->init_sequence) == FS_INIT_SEQ);
 }
+
+#endif
