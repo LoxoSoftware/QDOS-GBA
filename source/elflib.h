@@ -169,19 +169,6 @@ void elf_runReloc(Elf32_Ehdr* elf)
     u32 startupsz= 0;
     u32 textsz= 0;
 
-    //Find an executable section
-    // u16 is= 0;
-    // do
-    // {
-    //     sec_text= elf_getSectionByInd(elf, is);
-    //     if (!sec_text) break;
-    //     if (read32(&sec_text->sh_flags) == (SHF_ALLOC | SHF_EXECINSTR)
-    //         && read32(&sec_text->sh_size) > 4
-    //         && read32(&sec_text->sh_type) == SHT_PROGBITS
-    //     ) break;
-    //     is++;
-    // } while (sec_text && is < 256);
-
     //Count total code size to allocate after
     if (!sec_text && !sec_text_startup)
     {
@@ -293,25 +280,6 @@ void elf_runReloc(Elf32_Ehdr* elf)
     {
         console_printf("EXE: WARN: Main relocation table not found, this may not work!");
         console_drawbuffer();
-        // console_printf("EXE: WARN: Main relocation table not found, this may not work!&nTrying to relocate by brute force...&n");
-        // console_drawbuffer();
-        // for (u32 i=(u32)new_entry; i<(u32)new_entry+startupsz; i+=4)
-        // {
-        //     switch (*(u8*)new_entry)
-        //     {
-        //         case 0xEB: //ARM BX
-        //             *(u32*)i= 0xEB000000+(startupsz-(i-(u32)new_entry))/4-2;
-        //             break;
-        //         default:
-        //             continue;
-        //     }
-        //
-        //     if (dbg_elfexec)
-        //     {
-        //         console_printf("auto rel 0x%h", i);
-        //         console_drawbuffer();
-        //     }
-        // }
     }
 
     if (dbg_elfexec)
