@@ -45,7 +45,8 @@ void os_exec(file_t* file)
             case EXE_RELOC:
                 elf_runReloc(exeptr);
                 return;
-            case EXE_STATIC:
+            case EXE_DYNAMIC:
+                elf_runDynamic(exeptr);
                 break;
             default:
                 console_printf("Invalid exec. format&n");

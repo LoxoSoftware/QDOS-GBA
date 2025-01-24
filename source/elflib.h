@@ -11,36 +11,36 @@ typedef enum {
     EXE_UNSUPPORTED = -1,
     EXE_INVALID     = 0,
     EXE_RELOC       = 1,
-    EXE_STATIC      = 2,
+    EXE_DYNAMIC     = 2,
 } exe_t;
 
 bool dbg_elfexec= true;
 
 exe_t elf_check(Elf32_Ehdr* exeptr)
 {
-    if (memcmp(exeptr->e_ident, "\x7f""ELF\1\1\1", 7))
+    if (memcmp(exeptr->e_ident, "\x7f""ELF", 4))
         return EXE_WRONGMAGIC;
 
-    if (exeptr->e_ident[4] != ELFCLASS32 || read16(&exeptr->e_machine) != EM_ARM)
+    if (exeptr->e_ident[EI_CLASS] != ELFCLASS32 || exeptr->e_ident[EI_DATA] != ELFDATA2LSB ||
+        read16(&exeptr->e_machine) != EM_ARM)
         return EXE_INVALIDARCH;
 
     exe_t ttype= EXE_INVALID;
 
     switch (read16(&exeptr->e_type))
     {
-        case ET_DYN:
         case ET_CORE:
         case ET_EXEC:
             return EXE_UNSUPPORTED;
+        case ET_DYN:
+            ttype= EXE_DYNAMIC;
+            break;
         case ET_REL:
             ttype= EXE_RELOC;
             break;
         default:
             return EXE_INVALID;
     }
-
-    if (exeptr->e_entry == 0 && ttype == EXE_STATIC)
-        return EXE_INVALID;
 
     return ttype;
 }
@@ -154,6 +154,78 @@ Elf32_Shdr* elf_getSectionByInd(Elf32_Ehdr* elf, u16 index)
         return NULL;
 
     return (Elf32_Shdr*)((u32)elf+read32(&elf->e_shoff)+secsz*index);
+}
+
+void elf_runDynamic(Elf32_Ehdr* elf)
+{
+    void (*new_entry)(void);
+    u32 totalsz= 0;
+
+    Elf32_Phdr* pheaders= (Elf32_Phdr*)((u32)elf+read32(&elf->e_phoff));
+    u16 nheaders= read16(&elf->e_phnum);
+
+    if (!elf->e_phoff || !nheaders)
+    {
+        console_printf("EXE: ERR! No program header found.&n");
+        console_drawbuffer();
+    }
+
+    Elf32_Phdr* ph_code= NULL;
+    u32 codesz= 0, allocsz= 0;
+
+    //Find an executable program header
+    for (u16 ih=0; ih<nheaders; ih++)
+    {
+        Elf32_Phdr* tph= (Elf32_Phdr*)(pheaders+ih*sizeof(Elf32_Phdr));
+
+        if (read32(&tph->p_type) == PT_LOAD)
+            if (read32(&tph->p_flags) & PF_R && read32(&tph->p_flags) & PF_X)
+            {
+                ph_code= tph;
+                codesz= read32(&tph->p_filesz);
+                allocsz= read32(&tph->p_memsz);
+                break;
+            }
+    }
+
+    if (!ph_code || !codesz || !allocsz)
+    {
+        console_printf("EXE: ERR! No executable code found.&n");
+        console_drawbuffer();
+        return;
+    }
+
+    if (dbg_elfexec)
+    {
+        console_printf("Allocating %d bytes&n", allocsz);
+        console_drawbuffer();
+    }
+    new_entry= malloc(totalsz);
+    if (!new_entry)
+    {
+        console_printf("EXE: ERR! Memory allocation failed&n");
+        console_drawbuffer();
+        return;
+    }
+
+    //Copy code
+    if (dbg_elfexec)
+    {
+        console_printf(".text -> 0x%h&n", (u32)new_entry);
+        console_drawbuffer();
+    }
+    for (int i=0; i<codesz; i++)
+        *((u8*)new_entry+i)= *(u8*)((u32)elf+read32(&ph_code->p_offset)+i);
+
+    if (dbg_elfexec)
+    {
+        console_printf("run 0x%h...&n", (u32)new_entry);
+        console_drawbuffer();
+    }
+
+    (*new_entry)();
+
+    free(new_entry);
 }
 
 void elf_runReloc(Elf32_Ehdr* elf)
