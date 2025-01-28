@@ -35,11 +35,9 @@ ARM_CODE void isr_IRQReceived()
     switch(SYSCALL_ARGS->function)
     {
         case SCALL_CONSOLE_PRINT:
-            draw_clear(c_green);
             console_prints((char*)(SYSCALL_ARGS->arg1));
             break;
         case SCALL_CONSOLE_DRAW:
-            draw_clear(c_white);
             console_drawbuffer();
             break;
         default:

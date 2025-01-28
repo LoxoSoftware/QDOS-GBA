@@ -14,7 +14,7 @@ typedef enum {
     EXE_DYNAMIC     = 2,
 } exe_t;
 
-bool dbg_elfexec= true;
+bool dbg_elfexec= false;
 
 exe_t elf_check(Elf32_Ehdr* exeptr)
 {
@@ -159,7 +159,6 @@ Elf32_Shdr* elf_getSectionByInd(Elf32_Ehdr* elf, u16 index)
 void elf_runDynamic(Elf32_Ehdr* elf)
 {
     void (*new_entry)(void);
-    u32 totalsz= 0;
 
     Elf32_Phdr* pheaders= (Elf32_Phdr*)((u32)elf+read32(&elf->e_phoff));
     u16 nheaders= read16(&elf->e_phnum);
@@ -173,19 +172,22 @@ void elf_runDynamic(Elf32_Ehdr* elf)
     Elf32_Phdr* ph_code= NULL;
     u32 codesz= 0, allocsz= 0;
 
-    //Find an executable program header
+    //Parse program headers
     for (u16 ih=0; ih<nheaders; ih++)
     {
-        Elf32_Phdr* tph= (Elf32_Phdr*)(pheaders+ih*sizeof(Elf32_Phdr));
+        Elf32_Phdr* tph= (Elf32_Phdr*)((u32)pheaders+ih*sizeof(Elf32_Phdr));
 
         if (read32(&tph->p_type) == PT_LOAD)
+        {
             if (read32(&tph->p_flags) & PF_R && read32(&tph->p_flags) & PF_X)
             {
                 ph_code= tph;
-                codesz= read32(&tph->p_filesz);
-                allocsz= read32(&tph->p_memsz);
-                break;
             }
+
+            codesz+= read32(&tph->p_filesz);
+            allocsz+= read32(&tph->p_memsz);
+        }
+
     }
 
     if (!ph_code || !codesz || !allocsz)
@@ -200,7 +202,7 @@ void elf_runDynamic(Elf32_Ehdr* elf)
         console_printf("Allocating %d bytes&n", allocsz);
         console_drawbuffer();
     }
-    new_entry= malloc(totalsz);
+    new_entry= malloc(allocsz);
     if (!new_entry)
     {
         console_printf("EXE: ERR! Memory allocation failed&n");
@@ -208,14 +210,26 @@ void elf_runDynamic(Elf32_Ehdr* elf)
         return;
     }
 
-    //Copy code
-    if (dbg_elfexec)
+    //Copy contents of program headers
+    u8* tmi= (u8*)new_entry;
+    for (u16 ih=0; ih<nheaders; ih++)
     {
-        console_printf(".text -> 0x%h&n", (u32)new_entry);
-        console_drawbuffer();
+        Elf32_Phdr* tph= (Elf32_Phdr*)((u32)pheaders+ih*sizeof(Elf32_Phdr));
+
+        if (read32(&tph->p_type) == PT_LOAD)
+        {
+            u32 p_filesz= read32(&tph->p_filesz);
+
+            if (dbg_elfexec)
+            {
+                console_printf("copy 0x%h to 0x%h&n", (u32)elf+read32(&tph->p_offset), (u32)tmi);
+                console_drawbuffer();
+            }
+            for (u32 ib=0; ib<p_filesz; ib++)
+                tmi[ib]= *(u8*)((u32)elf+read32(&tph->p_offset)+ib);
+            tmi+= read32(&tph->p_filesz);
+        }
     }
-    for (int i=0; i<codesz; i++)
-        *((u8*)new_entry+i)= *(u8*)((u32)elf+read32(&ph_code->p_offset)+i);
 
     if (dbg_elfexec)
     {

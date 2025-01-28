@@ -88,7 +88,7 @@ int main()
 	console_newline();
 	console_printf("Welcome to %s version %s&n",OS_NAME,OS_VERSION);
 	execute_command("m");
-	//execute_command("bas");
+	//execute_command("hello.qdos");
 	console_drawbuffer();
 
 	while(1)
