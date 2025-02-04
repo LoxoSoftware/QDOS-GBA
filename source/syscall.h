@@ -1,4 +1,4 @@
-//irq.h
+//syscall.h
 
 #ifndef _gba_interrupt_h_
     #include <gba_interrupt.h>
