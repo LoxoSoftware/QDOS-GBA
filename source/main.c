@@ -15,7 +15,7 @@
 #include "flashfs.h"
 
 #define OS_NAME 		"QDOS"
-#define OS_VERSION 		"0.0.7.0"
+#define OS_VERSION 		"0.0.7.5"
 
 #define GETBIT(x,n) 	(((x) >> (n)) & 1)
 
@@ -29,7 +29,7 @@ int main()
 	console_init();
 	console_colors(c_black, c_ltgray, c_ltgray);
 
-	irqSet(IRQ_DMA0, isr_IRQReceived);
+	irqSet(IRQ_DMA0, isr_IRQReceiver);
 	irqEnable(IRQ_DMA0);
 	
 	void drawhistory() {
