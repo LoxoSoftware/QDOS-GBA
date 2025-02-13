@@ -75,20 +75,32 @@ void fcmd_nf()
         ret= fs_newfile(ARGV(1), strtol(ARGV(2),NULL,10));
     if (!ret)
     {
-        console_printf("ERR: ");
+        console_printf("NF ERR: ");
         console_printf(fs_error);
         console_newline();
     }
-    else
-    {
-        console_printf("%h&n", (u32)ret);
-    }
 }
 
-// void fcmd_rm()
-// {
-//
-// }
+void fcmd_rm()
+{
+    if (!ARGV(1)[0])
+    {
+        console_printf("No filename specified&n");
+        return;
+    }
+    if (!fs_getfileptr(ARGV(1)))
+    {
+        console_printf("No such file to remove&n");
+        return;
+    }
+    if (!fs_rmfile(ARGV(1)))
+    {
+        console_printf("RM ERR: ");
+        console_printf(fs_error);
+        console_newline();
+        console_printf("WARNING: Changes were not saved to flash. Reboot the GBA now to avoid corruption&n");
+    }
+}
 
 void fcmd_fdisk__kint1()
 {
@@ -118,7 +130,7 @@ ostool_t romtools[]=
     { "cmd", "Show builtin tools", &fcmd_cmdlist },
     { "ls", "List files", &fcmd_ls },
     { "new", "New file", &fcmd_nf },
-    // &cmd_rm,
+    { "rm", "Delete file", &fcmd_rm },
     { "fmt", "Format flash", &fcmd_fdisk },
 };
 const int romtools_sz= sizeof(romtools)/sizeof(ostool_t);

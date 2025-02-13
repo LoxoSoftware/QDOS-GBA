@@ -21,6 +21,9 @@
 #define MAXALLOCS       ((FS_SECTOR_SZ-FS_ROOTHEAD_SZ)>>1)
 #define MAXFILECHUNK    (FS_SECTOR_SZ-FS_FILEHEAD_SZ)
 
+#define FS_FNAME_SZ     12
+#define FS_FTYPE_SZ     4
+
 u32 sram_size= SRAM_MAX;
 
 typedef struct fsroot_s
@@ -33,8 +36,8 @@ typedef struct fsroot_s
 
 typedef struct file_s
 {
-    char type[4];
-    char name[12];
+    char type[FS_FTYPE_SZ];
+    char name[FS_FNAME_SZ];
     u32  size;
     u32  attr;
     u8*  data;
@@ -185,7 +188,9 @@ IWRAM_CODE u8 fl_read8(u8* ptr)
     return ((u8*)SRAM)[ofs];
 }
 
-/////////////////////
+/// Filesystem implementation ///
+
+#define FS_PTRBLOCKID(ptr)      (((u32)ptr-(u32)fs_root)/FS_SECTOR_SZ-1)
 
 IWRAM_CODE int _strcmp(char* str1, char* str2)
 {
@@ -348,32 +353,137 @@ int fs_alloc(u32 blocksize)
     return slot[0];
 }
 
-void fs_dealloc(int blockid)
+int fs_dealloc(int blockid)
 {
+    //Returns the index of the last block deleted in secmap
+
     if (fs_secmap[blockid]==0xFFFF)
     {
         sprintf(fs_error, "FREE: Sector is not allocated");
-        return;
+        return -1;
     }
 
     int s= blockid;
-    while (fs_secmap[s]&0x7FFF)
+    while (1)
     {
-        if (fs_secmap[s]==0xFFFF)
+        if ((fs_secmap[s]&0x7FFF)==0x0000)
+        {
+            fs_secmap[s]= 0xFFFF;
+            break;
+        }
+        if ((fs_secmap[s]&0x7FFF)==0x7FFF)
         {
             sprintf(fs_error, "FREE: secmap entry does not contain a valid pointer. You have stray sectors");
-            return;
+            return -1;
         }
-        s = fs_secmap[s]&0x7FFF;
-        fs_secmap[s] = 0xFFFF;
+        int next_s= fs_secmap[s]&0x7FFF;
+        fs_secmap[s]= 0xFFFF;
+        s= next_s;
     }
 
     fs_secmap[blockid] = 0xFFFF;
     sprintf(fs_error, "FREE: ok (%d)", blockid);
+
+    return s;
+}
+
+file_t* fs_getfileptr(char* fname)
+{
+    char* dot= strrchr(fname,'.');
+    // if (dot) if ((u32)dot-(u32)fname==1)
+    //     return NULL; //Filenames with an ampty type after the '.' are invalid
+
+    for (int f=0; f<MAXALLOCS; f++)
+    {
+        if (!(read16(&fs_root->secmap[f])&0x8000) || (read16(&fs_root->secmap[f])==0xFFFF))
+            continue;
+
+        file_t* fptr= (file_t*)((u32)fs_root+(FS_SECTOR_SZ*(f+1)));
+
+        if (dot)
+        {
+            if (fptr->type[0]=='\0' || fptr->type[0]==0xFF)
+                continue;
+            if (!_strncmp(fptr->name, fname, (u32)dot-(u32)fname))
+                if (!_strncmp(fptr->type, dot+1, FS_FTYPE_SZ))
+                    return fptr;
+        }
+        else
+        {
+            if (fptr->type[0]!='\0' && fptr->type[0]!=0xFF)
+                continue;
+            if (!_strncmp(fptr->name, fname, FS_FNAME_SZ))
+                return fptr;
+        }
+    }
+
+    return NULL;
+}
+
+file_t* fs_getfileptr_trunc(char* fname)
+{
+    //Omits the file extension
+
+    for (int f=0; f<MAXALLOCS; f++)
+    {
+        if (!(read16(&fs_root->secmap[f])&0x8000) || (read16(&fs_root->secmap[f])==0xFFFF))
+            continue;
+
+        file_t* fptr= (file_t*)((u32)fs_root+(FS_SECTOR_SZ*(f+1)));
+
+        if (!_strncmp(fptr->name, fname, FS_FNAME_SZ))
+            return fptr;
+    }
+
+    return NULL;
+}
+
+bool fs_check_fname(char* fname)
+{
+    char* dot= strrchr(fname,'.');
+
+    if (dot)
+    {
+        if ((u32)dot-(u32)fname>FS_FNAME_SZ+1)
+        {
+            sprintf(fs_error, "Name part is too long");
+            return false;
+        }
+        if (strlen(fname)-((u32)dot-(u32)fname)>FS_FTYPE_SZ+1)
+        {
+            sprintf(fs_error, "File extension is too long");
+            return false;
+        }
+        if (dot[1] == '!')
+        {
+            sprintf(fs_error, "Invalid attempt to select system file");
+            return false;
+        }
+    }
+    else
+    {
+        if (strlen(fname)>FS_FNAME_SZ)
+        {
+            sprintf(fs_error, "File name is too long");
+            return false;
+        }
+    }
+
+    if (strpbrk(fname,"/\\$#\""))
+    {
+        sprintf(fs_error, "File name contains invalid characters");
+        return false;
+    }
+
+    return true;
 }
 
 file_t* fs_newfile(char* fname, u32 fsize)
 {
+    fs_loadFlash();
+
+    if (!fs_check_fname(fname)) return NULL;
+
     int fid= fs_alloc(fsize+FS_FILEHEAD_SZ);
     if (fid < 0) return NULL;
     file_t* fptr= (file_t*)((u32)fs_root+FS_SECTOR_SZ*(fid+1));
@@ -414,58 +524,28 @@ file_t* fs_newfile(char* fname, u32 fsize)
     return fptr;
 }
 
-file_t* fs_getfileptr(char* fname)
+bool fs_rmfile(char* fname)
 {
-    for (int f=0; f<MAXALLOCS; f++)
+    //Returns false on error
+
+    fs_loadFlash(); //Sync temporary secmap to flash contents
+
+    if (!fs_check_fname(fname))
+        return false;
+
+    file_t* file= fs_getfileptr(fname);
+    if (!file)
     {
-        if (!(read16(&fs_root->secmap[f])&0x8000) || (read16(&fs_root->secmap[f])==0xFFFF))
-            continue;
-
-        file_t* fptr= (file_t*)((u32)fs_root+(FS_SECTOR_SZ*(f+1)));
-
-        if (!_strncmp(fptr->name, fname, sizeof(fptr->name)))
-            return fptr;
+        sprintf(fs_error, "No such file");
+        return false;
     }
 
-    return NULL;
-}
+    if (fs_dealloc(FS_PTRBLOCKID(file))<0)
+        return false;
 
-file_t* fs_getfileptr_trunc(char* fname)
-{
-    //Omits the file extension
+    fs_saveFlash(); //Flush changes to flash
 
-    int name_len= strrchr(fname,'.')?
-            (u16)(strrchr(fname,'.')-fname)
-            : (u16)(strrchr(fname,'\0')-fname);
-    int type_len= (u32)strrchr(fname,'\0')-(u32)strrchr(fname,'.')-1 < sizeof(((file_t*)0)->type)?
-            (u32)strrchr(fname,'\0')-(u32)strrchr(fname,'.')-1
-            : sizeof(((file_t*)0)->type);
-
-    for (int f=0; f<MAXALLOCS; f++)
-    {
-        if (!(read16(&fs_root->secmap[f])&0x8000) || (read16(&fs_root->secmap[f])==0xFFFF))
-            continue;
-
-        file_t* fptr= (file_t*)((u32)fs_root+(FS_SECTOR_SZ*(f+1)));
-
-        if (!_strncmp(fptr->name, fname, name_len)
-            && !_strncmp(fptr->type, fname+name_len+1, type_len)
-        )
-            return fptr;
-    }
-
-    return NULL;
-}
-
-void fs_rmfile(char* fname)
-{
-
-
-}
-
-u8 fs_valid_name(char* name)
-{
-    return 1;
+    return true;
 }
 
 u32 fs_used()
