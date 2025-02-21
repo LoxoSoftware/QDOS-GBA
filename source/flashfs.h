@@ -24,9 +24,11 @@
 #define FS_FNAME_SZ     12
 #define FS_FTYPE_SZ     4
 
+#define FS_MAX_FHANDLES 16
+
 u32 sram_size= SRAM_MAX;
 
-typedef struct fsroot_s
+typedef struct
 {
     u32 init_sequence;
     u8  reserved[FS_ROOTHEAD_SZ-sizeof(u32)];
@@ -34,7 +36,7 @@ typedef struct fsroot_s
     //NOTE: MSB of secmap[x] is set if the sector is formatted as a file
 } fsroot_t;
 
-typedef struct file_s
+typedef struct
 {
     char type[FS_FTYPE_SZ];
     char name[FS_FNAME_SZ];
@@ -43,15 +45,35 @@ typedef struct file_s
     u8*  data;
 } file_t;
 
-u16         fs_secmap[MAXALLOCS]; //Buffer copy in IWRAM
+typedef struct
+{
+    file_t* file;
+    u32     cursor;
+    char    mode;
+//Mode legend:
+//  'r' File open for reading (+ create)
+//  'w' File open for reading and writing (+ create)
+//  'p' File open for writing only (+ create) (pipe)
+//  'R' File open for reading (fail if file doesn't exist)
+//  'W' File open for reading and writing (fail if file doesn't exist)
+//  'P' File open for writing only (fail if file doesn't exist) (pipe)
+//  Set MSB to use append mode
+// Anything else is invalid, file is not open
+} fhandle_t;
+
+typedef s16 fdesc_t;                //File descriptor
+
+u16         fs_secmap[MAXALLOCS];   //Buffer copy in IWRAM
 fsroot_t*   fs_root= (fsroot_t*)SRAM;
+fhandle_t*  fs_handles[FS_MAX_FHANDLES];
 
 char fs_error[128];
 
 /// Flash driving ///
 
-#define FL_SECTOR(addr) (((u32)addr-SRAM)>>12)    //Get sector from address
-#define FL_BUFIND(addr) (((u32)addr-SRAM)&0x0FFF) //Get buffer index from address
+#define FL_SECTOR(addr)         (((u32)addr-SRAM)>>12)    //Get sector from address
+#define FL_BUFIND(addr)         (((u32)addr-SRAM)&0x0FFF) //Get buffer index from address
+#define FS_PTRBLOCKID(ptr)      (((u32)ptr-(u32)fs_root)/FS_SECTOR_SZ-1) //Get fs sector index from file address
 
 u8 fl_prevbank = 0;
 u8 fl_lastsector = 0;
@@ -189,8 +211,6 @@ IWRAM_CODE u8 fl_read8(u8* ptr)
 }
 
 /// Filesystem implementation ///
-
-#define FS_PTRBLOCKID(ptr)      (((u32)ptr-(u32)fs_root)/FS_SECTOR_SZ-1)
 
 IWRAM_CODE int _strcmp(char* str1, char* str2)
 {
@@ -546,6 +566,52 @@ bool fs_rmfile(char* fname)
     fs_saveFlash(); //Flush changes to flash
 
     return true;
+}
+
+fdesc_t fs_fopen(char* fname, char mode)
+{
+    //Returns <0 on error
+
+    file_t* fptr= fs_getfileptr(fname);
+
+    if (!fptr || !fs_check_fname(fname))
+    {
+        sprintf(fs_error, "OPEN: No such file \"%s\"", fname);
+        return -1;
+    }
+
+    char tstr[2]= { mode&0x7F, '\0' };
+
+    if (!strpbrk(tstr,"rRwWpP"))
+    {
+        sprintf(fs_error, "OPEN: Invalid fopen mode");
+        return -2;
+    }
+
+    for (fdesc_t ifd=0; ifd<FS_MAX_FHANDLES; ifd++)
+    {
+        if (!fs_handles[ifd]->mode)
+        {
+            //Allocate new handle
+            fs_handles[ifd]->mode= mode;
+            fs_handles[ifd]->file= fptr;
+            fs_handles[ifd]->cursor= 0;
+            sprintf(fs_error, "OPEN: ok (%d)", ifd);
+            return ifd;
+        }
+    }
+
+    sprintf(fs_error, "OPEN: Too many open files");
+    return -3;
+}
+
+void fs_fclose(fdesc_t fd)
+{
+    if (fd>FS_MAX_FHANDLES || fd<0)
+        return;
+
+    fs_handles[fd]->mode= '\0';
+    fs_handles[fd]->file= NULL;
 }
 
 u32 fs_used()
