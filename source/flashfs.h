@@ -69,12 +69,12 @@ typedef struct
     u32     cursor;
     char    mode;
 //Mode legend:
-//  'r' File open for reading (+ create)
+//  'r' File open for reading only(+ create)
 //  'w' File open for reading and writing (+ create)
-//  'p' File open for writing only (+ create) (pipe)
-//  'R' File open for reading (fail if file doesn't exist)
+//  'p' File open for writing only (+ create)
+//  'R' File open for reading only (fail if file doesn't exist)
 //  'W' File open for reading and writing (fail if file doesn't exist)
-//  'P' File open for writing only (fail if file doesn't exist) (pipe)
+//  'P' File open for writing only (fail if file doesn't exist)
 //  Set MSB to use append mode
 // Anything else is invalid, file is not open
 } fhandle_t;
@@ -93,9 +93,9 @@ char fs_error[128];
 #define FL_BUFIND(addr)         (((u32)addr-SRAM)&0x0FFF) //Get buffer index from address
 #define FS_PTRBLOCKID(ptr)      (((u32)ptr-(u32)fs_root)/FS_SECTOR_SZ-1) //Get fs sector index from file address
 
-u8 fl_prevbank = 0;
-u8 fl_lastsector = 0;
-u8 fl_secbuf[4096];
+u8 fl_prevbank = 0;     //Last used FLASH bank
+u8 fl_lastsector = 0;   //Last cached FLASH sector
+u8 fl_secbuf[4096];     //Sector cache
 
 inline void mdelay(int delay)
 {
@@ -516,6 +516,17 @@ bool fs_check_fname(char* fname)
     return true;
 }
 
+fhandle_t* fd_get_handle(fdesc_t fd)
+{
+    if (fd>FS_MAX_FHANDLES || fd<0)
+    {
+        sprintf(fs_error, "OPEN: Cannot get file handle");
+        return NULL;
+    }
+
+    return fs_handles[fd];
+}
+
 file_t* fs_newfile(char* fname, u32 fsize)
 {
     fs_loadFlash();
@@ -598,6 +609,18 @@ fdesc_t fs_fopen(char* fname, char mode)
         return -1;
     }
 
+    for (fdesc_t ifd=0; ifd<FS_MAX_FHANDLES; ifd++)
+    {
+        if (!fs_handles[ifd]->mode)
+        {
+            if (fs_handles[ifd]->file == fptr)
+            {
+                sprintf(fs_error, "OPEN: Resource \"%s\" is already in use", fname);
+                return -4;
+            }
+        }
+    }
+
     char tstr[2]= { mode&0x7F, '\0' };
 
     if (!strpbrk(tstr,"rRwWpP"))
@@ -611,10 +634,12 @@ fdesc_t fs_fopen(char* fname, char mode)
         if (!fs_handles[ifd]->mode)
         {
             //Allocate new handle
-            fs_handles[ifd]->mode= mode;
-            fs_handles[ifd]->file= fptr;
-            fs_handles[ifd]->cursor= 0;
-            sprintf(fs_error, "OPEN: ok (%d)", ifd);
+            fhandle_t* hdl= fd_get_handle(ifd);
+            if (!hdl) return -3;
+            hdl->mode= mode;
+            hdl->file= fptr;
+            hdl->cursor= 0;
+            sprintf(fs_error, "OPEN: ok (0x%lx)", (u32)hdl);
             return ifd;
         }
     }
@@ -625,11 +650,95 @@ fdesc_t fs_fopen(char* fname, char mode)
 
 void fs_fclose(fdesc_t fd)
 {
-    if (fd>FS_MAX_FHANDLES || fd<0)
-        return;
+    fhandle_t* hdl= fd_get_handle(fd);
+    if (!hdl) return;
 
-    fs_handles[fd]->mode= '\0';
-    fs_handles[fd]->file= NULL;
+    hdl->mode= '\0';
+    hdl->file= NULL;
+}
+
+IWRAM_CODE ARM_CODE u8 fs_fread(fdesc_t fd)
+{
+    //TODO: Fix reliance on continous file access
+
+    fhandle_t* hdl= fd_get_handle(fd);
+    if (!hdl) return 0x69;
+
+    if (!hdl->file)
+    {
+        sprintf(fs_error, "READ: Null file pointer");
+        return 0x69;
+    }
+
+    char mode[2]= { hdl->mode&0x7F, '\0' };
+    if (!strpbrk(mode, "rRwW"))
+    {
+        sprintf(fs_error, "READ: File is not open for reading");
+        return 0x00;
+    }
+    if (hdl->cursor >= hdl->file->size)
+    {
+        hdl->cursor= hdl->file->size-1;
+        sprintf(fs_error, "READ: EOF reached");
+        return hdl->file->data[hdl->cursor];
+    }
+
+    hdl->cursor++;
+    return hdl->file->data[hdl->cursor-1];
+}
+
+IWRAM_CODE ARM_CODE void fs_fwrite(fdesc_t fd, u8 ch)
+{
+    //TODO: Fix reliance on continous file access
+
+    fhandle_t* hdl= fd_get_handle(fd);
+    if (!hdl) return;
+
+    if (!hdl->file)
+    {
+        sprintf(fs_error, "WRITE: Null file pointer");
+        return;
+    }
+
+    char mode[2]= { hdl->mode&0x7F, '\0' };
+    if (!strpbrk(mode, "wWpP"))
+    {
+        sprintf(fs_error, "WRITE: File is not open for writing");
+        return;
+    }
+    if (hdl->cursor >= hdl->file->size)
+    {
+        hdl->cursor= hdl->file->size-1;
+        sprintf(fs_error, "WRITE: EOF reached");
+        return;
+    }
+
+    hdl->cursor++;
+    fl_write8(&hdl->file->data[hdl->cursor-1], ch);
+}
+
+void fs_fseek(fdesc_t fd, u32 pos)
+{
+    fhandle_t* hdl= fd_get_handle(fd);
+    if (!hdl) return;
+
+    if (!hdl->file)
+    {
+        sprintf(fs_error, "SEEK: Null file pointer");
+        return;
+    }
+    if (pos >= hdl->file->size)
+        pos= hdl->file->size;
+
+    hdl->cursor= pos;
+}
+
+u32 fs_ftell(fdesc_t fd)
+{
+    fhandle_t* hdl= fd_get_handle(fd);
+    if (!hdl) return 0;
+
+    return hdl->cursor;
 }
 
 u32 fs_used()
@@ -642,12 +751,12 @@ u32 fs_used()
             continue;
 
         bytes_used += FS_SECTOR_SZ;
-        int s=f;
+        int s= f;
 
         while (read16(&fs_root->secmap[s])&0x7FFF)
         {
             bytes_used += FS_SECTOR_SZ;
-            s = (read16(&fs_root->secmap[s]))&0x7FFF;
+            s= (read16(&fs_root->secmap[s]))&0x7FFF;
         }
     }
 
