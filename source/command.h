@@ -212,6 +212,12 @@ void execute_command(char* cmd)
         //TODO: Add the possibility to select an address
         asm("BL 0x02000000");
     }
+    else
+    if (!strcmp(cmdtok[0],"exit"))
+    {
+        __system_mainloop= false;
+        goto endparse;
+    }
     else if (tokc && strcmp(cmdtok[0],""))
     {
         void (*program)(void);
