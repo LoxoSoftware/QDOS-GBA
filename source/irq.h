@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////////
 //                                                                          //
-// QDOS/define.h    OS misc definitions                                     //
+// QDOS/irq.h       Interrupt handler functions                             //
 // Copyright (C) 2024-2025  Lorenzo C. (aka LoxoSoftware)                   //
 //                                                                          //
 //   This program is free software: you can redistribute it and/or modify   //
@@ -18,35 +18,16 @@
 //                                                                          //
 //////////////////////////////////////////////////////////////////////////////
 
-#include "gmklib.h"
+bool vk_isr_busy= false;
 
-int __system_debuglevel= 0;
-bool __system_mainloop= true;
+ARM_CODE void isr_vkeyboard()
+{
+    if (vk_isr_busy) return;
+    vk_isr_busy= true;
 
-#define __int_argsize 4
-#define __int_argword 16
+    irqDisable(IRQ_KEYPAD);
+    go_console_keyboard(&execute_command);
 
-//u8   __shell_stdout_queue[__PROGRAMDATA_MAX];
-int  __shell_activeproc= -1; //-1 is the system shell
-
-char* __com_promptstr= "\\";
-bool  __com_prompt_show= true;
-bool  __com_prompt_active= false;
-#define __com_history_size 5
-#define __com_history_word 64
-int   __com_history_last= 0;
-int   __com_history_index= 0;
-char* __com_history;
-
-char* kbstring= "";
-int   kbstring_len= 0;
-int   __keyboard_height= 64;
-bool  __keyboard_autohide= true;
-u16   __keyboard_txtfgcol= c_black;
-u16   __keyboard_txtbgcol= c_aqua;
-
-#define IWRAM_SIZE  32768
-#define EWRAM_SIZE  262144
-#define SRAM_SIZE   sram_size
-
-#define MBCODE_SIZE 131072
+    vk_isr_busy= false;
+    return;
+}

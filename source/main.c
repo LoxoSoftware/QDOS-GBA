@@ -28,6 +28,7 @@
 #include "console.h"
 #include "command.h"
 #include "keyboard.h"
+#include "irq.h"
 #include "syscall.h"
 #include "tools.h"
 #include "flashfs.h"
@@ -47,8 +48,14 @@ int main()
 	console_init();
 	console_colors(c_black, c_ltgray, c_ltgray);
 
+	//Setup hardware interrupt for syscalls
+	//	(sadly I can't use software interrupts)
 	irqSet(IRQ_DMA0, isr_IRQReceiver);
 	irqEnable(IRQ_DMA0);
+	//Setup hardware interrupt for virtual keyboard
+	REG_KEYCNT= KEY_L | KEY_R | KEYIRQ_ENABLE | KEYIRQ_AND;
+	irqSet(IRQ_KEYPAD, isr_vkeyboard);
+	irqEnable(IRQ_KEYPAD);
 	
 	void drawhistory() {
 		
@@ -100,7 +107,7 @@ int main()
 	console_drawbuffer();
 	if (firsttime)
 	{
-		console_printf("&nFlash is not properly formatted,&nuse the \"fmt\" command to fix it.&n");
+		console_printf("&nFlash is not properly formatted,&nuse the \"fmt\" command to initialize it.&n");
 		console_drawbuffer();
 	}
 	console_newline();
@@ -109,17 +116,17 @@ int main()
 	//execute_command("hello.qdos");
 	console_drawbuffer();
 
-	while(1)
+	while(__system_mainloop)
 	{
 		//Main loop
 		if (__com_prompt_active && __shell_activeproc == -1)
 			command_prompt();
-			
-		if (keypad_check(key_L) && keypad_check(key_R) && pressed)
-			go_console_keyboard(&execute_command);
 		
 		console_idle();		
 		screen_wait_vsync();
+
+		if (keypad_check(key_L) && keypad_check(key_R) && pressed)
+			irqEnable(IRQ_KEYPAD);
 		
 		if (__shell_activeproc == -1)
 		{
@@ -166,6 +173,6 @@ int main()
 		// }
 	}
 	
-	console_printf("System halted! Please reboot to retry&n");
+	console_printf("Out of init thread! Please reboot to retry&n");
 	console_drawbuffer();
 }

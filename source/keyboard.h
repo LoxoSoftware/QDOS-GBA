@@ -30,10 +30,14 @@ int __keyboard_lastselx= 0;
 int __keyboard_lastsely= 0;
 int __keyboard_lastcase= 0;
 
+bool __keyboard_isopen= false;
+
 //extern void execute_command(char* cmd);
 void go_console_keyboard(void (*fnptr)(char*)) {
 
-	const int KEYS_W = SCREEN_WIDTH; 
+	if (__keyboard_isopen) return;
+
+	const int KEYS_W = SCREEN_WIDTH;
 	const int ROWS = 4;
 	const int COLUMNS = 10;
 	
@@ -293,7 +297,10 @@ void go_console_keyboard(void (*fnptr)(char*)) {
 			inlen= 0;
 			
 			if (__keyboard_autohide)
+			{
+				__keyboard_isopen= false;
 				__console_yoffset= 0;
+			}
 			
 			console_printf(kbstring);
 			console_drawbuffer();
@@ -311,7 +318,9 @@ void go_console_keyboard(void (*fnptr)(char*)) {
 			console_drawbuffer();
 			
 			if (__keyboard_autohide)
+			{
 				return;
+			}
 			
 			redraw();
 		}
@@ -330,6 +339,8 @@ void go_console_keyboard(void (*fnptr)(char*)) {
 			__console_yoffset= 0;
 			console_printf(kbstring);
 			console_drawbuffer();
+
+			__keyboard_isopen= false;
 			return;
 		}
 	
