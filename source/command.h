@@ -57,6 +57,8 @@ void command_prompt() {
 	__com_prompt_active= false;
 }
 
+#pragma GCC push_options
+#pragma GCC optimize ("O1")
 int tokenstr(char* instr, char* tokens[])
 {
     int len= strlen(instr);
@@ -86,15 +88,16 @@ int tokenstr(char* instr, char* tokens[])
                 memmove(tokens[tc], tokens[tc]+1, si-lsi);
                 *strchr(tokens[tc],'\"')='\0';
             }
+            if (tokens[tc][si-lsi]==' ')
+                tokens[tc][si-lsi]='\0';
             lsi= si+1;
-            if (tokens[tc][lsi-1]==' ')
-                tokens[tc][lsi-1]='\0';
             tc++;
         }
     }
 
     return tc;
 }
+#pragma GCC pop_options
 
 void runtime_patch_code(void* prg_start, u32 prg_size)
 {
