@@ -34,7 +34,7 @@
 #include "flashfs.h"
 
 #define OS_NAME 		"QDOS"
-#define OS_VERSION 		"0.0.8.0"
+#define OS_VERSION 		"0.0.9.0"
 
 #define GETBIT(x,n) 	(((x) >> (n)) & 1)
 
@@ -113,7 +113,6 @@ int main()
 	console_newline();
 	console_printf("Welcome to %s version %s&n",OS_NAME,OS_VERSION);
 	execute_command("m");
-	//execute_command("hello.qdos");
 	console_drawbuffer();
 
 	while(__system_mainloop)
