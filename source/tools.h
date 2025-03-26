@@ -38,11 +38,6 @@ typedef struct ostool_s
 extern ostool_t     romtools[];
 extern const int    romtools_sz;
 
-// void fcmd_testfunc()
-// {
-//     console_printf("It friggin' works!&n");
-// }
-
 void fcmd_cmdlist()
 {
     for (int i=0; i < romtools_sz; i++)
@@ -142,13 +137,82 @@ void fcmd_fdisk()
     go_console_keyboard(fcmd_fdisk__kint1);
 }
 
+void fcmd_fread()
+{
+    if (!ARGV(1)[0])
+    {
+        console_printf("No filename specified&n");
+        return;
+    }
+
+    fdesc_t fd= fs_fopen(ARGV(1), 'r');
+
+    if (fd<0)
+    {
+        console_printf("ERR: %s", fs_error);
+        console_newline();
+        console_drawbuffer();
+        return;
+    }
+
+    char chstr[2]= { '\0', '\0' };
+
+    if (!fs_ftell(fd))
+    {
+        fs_fclose(fd);
+        return;
+    }
+
+    do
+    {
+        chstr[0]= fs_fread(fd);
+        console_printf(chstr);
+    }
+    while (fs_ftell(fd));
+
+    fs_fclose(fd);
+}
+
+void fcmd_fwrite()
+{
+    if (!ARGV(1)[0])
+    {
+        console_printf("No filename specified&n");
+        return;
+    }
+    if (!ARGV(2)[0])
+    {
+        console_printf("No data&n");
+        return;
+    }
+
+    fdesc_t fd= fs_fopen(ARGV(1), 'p');
+
+    if (fd<0)
+    {
+        console_printf("ERR: %s", fs_error);
+        console_newline();
+        console_drawbuffer();
+        return;
+    }
+
+    u32 strsz= strlen(ARGV(2));
+
+    for (u32 i=0; i<strsz && fs_ftell(fd)>0; i++)
+        fs_fwrite(fd, ARGV(2)[i]);
+    fs_flush();
+
+    fs_fclose(fd);
+}
+
 ostool_t romtools[]=
 {
-    // &cmd_test,
     { "cmd", "Show builtin tools", &fcmd_cmdlist },
     { "ls", "List files", &fcmd_ls },
     { "new", "New file", &fcmd_nf },
     { "rm", "Delete file", &fcmd_rm },
+    { "fw", "Write data to file", &fcmd_fwrite },
+    { "fr", "Read data from file", &fcmd_fread },
     { "fmt", "Format flash", &fcmd_fdisk },
 };
 const int romtools_sz= sizeof(romtools)/sizeof(ostool_t);
