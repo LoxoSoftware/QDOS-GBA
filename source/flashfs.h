@@ -92,9 +92,10 @@ char fs_error[128];
 #define FL_SECTOR(addr)         (((u32)addr-SRAM)>>12)    //Get sector from address
 #define FL_BUFIND(addr)         (((u32)addr-SRAM)&0x0FFF) //Get buffer index from address
 #define FS_PTRBLOCKID(ptr)      (((u32)ptr-(u32)fs_root)/FS_SECTOR_SZ-1) //Get fs sector index from file address
+#define STRUCT_ARR(arr, index, type) ((type*)((u32)&arr+index*sizeof(type*)))   //I hate this
 
-u8 fl_prevbank = 0;     //Last used FLASH bank
-u8 fl_lastsector = 0;   //Last cached FLASH sector
+u8 fl_prevbank= 255;    //Last used FLASH bank
+u8 fl_lastsector= 255;  //Last cached FLASH sector
 u8 fl_secbuf[4096];     //Sector cache
 
 inline void mdelay(int delay)
@@ -166,6 +167,13 @@ IWRAM_CODE void fl_erase4k(u8 sector)
     //      instead of directly manipulating the flash
 }
 
+IWRAM_CODE void fl_get4k(u8 sector)
+{
+    for (int i=0; i<4096; i++)
+        fl_secbuf[i]= ((u8*)SRAM)[sector*0x1000+i];
+    fl_lastsector= sector;
+}
+
 void fl_writeDirect(u32 ofs, u8 value);
 IWRAM_CODE void fl_restore4k()
 {
@@ -191,6 +199,9 @@ IWRAM_CODE void fl_write8(u8* ptr, u8 value)
 {
     //NOTE: Does not write directly to flash, writes to the buffer
     //      you can access it with SRAM addresses
+    //WARNING: You MUST copy the active sector to the buffer before writing to it!!
+    //              fl_erase4k(FL_SECTOR(write_address))  and
+    //         remeber to flush the buffer when done!! use fl_restore4k()
 
     u32 ofs= (u32)ptr-SRAM;
 
@@ -329,6 +340,7 @@ void fs_init()
 
     memset(fl_secbuf, 0xFF, 4096);
     memset((u8*)fs_secmap, 0xFF, sizeof(fs_secmap));
+    memset(&((*fs_handles)->mode), '\0', sizeof(fhandle_t));
 }
 
 void fs_saveFlash()
@@ -524,7 +536,7 @@ fhandle_t* fd_get_handle(fdesc_t fd)
         return NULL;
     }
 
-    return fs_handles[fd];
+    return STRUCT_ARR(fs_handles,fd,fhandle_t);
 }
 
 file_t* fs_newfile(char* fname, u32 fsize)
@@ -631,7 +643,7 @@ fdesc_t fs_fopen(char* fname, char mode)
 
     for (fdesc_t ifd=0; ifd<FS_MAX_FHANDLES; ifd++)
     {
-        if (!fs_handles[ifd]->mode)
+        if (!STRUCT_ARR(fs_handles,ifd,fhandle_t)->mode)
         {
             //Allocate new handle
             fhandle_t* hdl= fd_get_handle(ifd);
@@ -676,20 +688,21 @@ IWRAM_CODE ARM_CODE u8 fs_fread(fdesc_t fd)
         sprintf(fs_error, "READ: File is not open for reading");
         return 0x00;
     }
-    if (hdl->cursor >= hdl->file->size)
+    if (hdl->cursor >= read32(&hdl->file->size))
     {
-        hdl->cursor= hdl->file->size-1;
+        hdl->cursor= read32(&hdl->file->size);
         sprintf(fs_error, "READ: EOF reached");
-        return hdl->file->data[hdl->cursor];
+        return '\0';
     }
 
     hdl->cursor++;
-    return hdl->file->data[hdl->cursor-1];
+    return ((char*)(&hdl->file->data))[hdl->cursor-1];
 }
 
 IWRAM_CODE ARM_CODE void fs_fwrite(fdesc_t fd, u8 ch)
 {
     //TODO: Fix reliance on continous file access
+    //WARNING: Flush the buffer when done! use fl_flush()
 
     fhandle_t* hdl= fd_get_handle(fd);
     if (!hdl) return;
@@ -706,15 +719,22 @@ IWRAM_CODE ARM_CODE void fs_fwrite(fdesc_t fd, u8 ch)
         sprintf(fs_error, "WRITE: File is not open for writing");
         return;
     }
-    if (hdl->cursor >= hdl->file->size)
+    if (hdl->cursor >= read32(&hdl->file->size))
     {
-        hdl->cursor= hdl->file->size-1;
+        hdl->cursor= read32(&hdl->file->size);
         sprintf(fs_error, "WRITE: EOF reached");
         return;
     }
 
+    if (fl_lastsector != FL_SECTOR((u8*)(&hdl->file->data)))
+    {
+        if (fl_lastsector != 255)
+            fl_restore4k(); //Just in case
+        fl_get4k(FL_SECTOR(&hdl->file->data));
+    }
+
     hdl->cursor++;
-    fl_write8(&hdl->file->data[hdl->cursor-1], ch);
+    fl_write8(&((u8*)(&hdl->file->data))[hdl->cursor-1], ch);
 }
 
 void fs_fseek(fdesc_t fd, u32 pos)
@@ -738,7 +758,12 @@ u32 fs_ftell(fdesc_t fd)
     fhandle_t* hdl= fd_get_handle(fd);
     if (!hdl) return 0;
 
-    return hdl->cursor;
+    return read32(&hdl->file->size)-(hdl->cursor); //hdl->cursor;
+}
+
+inline void fs_flush()
+{
+    fl_restore4k();
 }
 
 u32 fs_used()
