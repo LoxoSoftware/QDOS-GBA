@@ -18,7 +18,7 @@
 //                                                                          //
 //////////////////////////////////////////////////////////////////////////////
 
-#include "gmklib.h"
+#include "video.h"
 
 int __system_debuglevel= 0;
 bool __system_mainloop= true;

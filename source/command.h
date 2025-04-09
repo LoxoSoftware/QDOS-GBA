@@ -38,14 +38,13 @@ void main_checkerr(int error)
 	if(error != 0)
 	{
 		//console_colors(c_maroon, c_yellow, c_red);
-		console_redrawrow(__console_irow-1, "[ERR]");
+		console_redrawrow(__console_irow-1, "x\xb3");
 		console_printf("returned %d&n", error);
 		console_drawbuffer();
-		sleep(60);
 
 	} else if (!error)
 	{
-		console_redrawrow(__console_irow-1, "[OK ]");
+		console_redrawrow(__console_irow-1, "\xdf\xb3");
 		console_drawbuffer();
 	}
 }
