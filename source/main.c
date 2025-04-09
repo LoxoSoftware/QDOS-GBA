@@ -34,7 +34,7 @@
 #include "flashfs.h"
 
 #define OS_NAME 		"QDOS"
-#define OS_VERSION 		"0.0.9.0"
+#define OS_VERSION 		"0.0.9.1"
 
 #define GETBIT(x,n) 	(((x) >> (n)) & 1)
 
