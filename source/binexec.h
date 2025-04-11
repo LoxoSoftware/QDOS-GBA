@@ -63,7 +63,7 @@ void os_exec(file_t* file)
             case EXE_RELOC:
                 elf_runReloc(exeptr);
                 return;
-            case EXE_DYNAMIC:
+            case EXE_STATIC:
                 elf_runDynamic(exeptr);
                 break;
             default:

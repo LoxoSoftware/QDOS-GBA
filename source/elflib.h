@@ -30,6 +30,7 @@ typedef enum {
     EXE_INVALID     = 0,
     EXE_RELOC       = 1,
     EXE_DYNAMIC     = 2,
+    EXE_STATIC      = 3,
 } exe_t;
 
 bool dbg_elfexec= false;
@@ -48,10 +49,11 @@ exe_t elf_check(Elf32_Ehdr* exeptr)
     switch (read16(&exeptr->e_type))
     {
         case ET_CORE:
-        case ET_EXEC:
             return EXE_UNSUPPORTED;
+        case ET_EXEC:
+            return EXE_STATIC;
         case ET_DYN:
-            ttype= EXE_DYNAMIC;
+            ttype= EXE_UNSUPPORTED;
             break;
         case ET_REL:
             ttype= EXE_RELOC;
