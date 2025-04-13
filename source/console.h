@@ -160,12 +160,12 @@ void console_scrolldown()
 {
 	__console_icolumn= 0;
 
-	for(int iy= 1; iy<__console_charperh; iy++)
+	for(int iy= 1; iy<=__console_charperh; iy++)
     {
 		for(int ix= 0; ix<__console_charperw; ix++)
         {
-			if (iy == __console_charperh-1)
-				__console_buffer[ix][iy-1]= 0;
+			if (iy == __console_charperh)
+				__console_buffer[ix][iy-1]= ' ';
 			else
 				__console_buffer[ix][iy-1] = __console_buffer[ix][iy];
 		}
@@ -179,10 +179,10 @@ void console_newline()
 	__console_irow++;
 	__console_icolumn=0;
 
-	if (__console_irow >= __console_charperh-1)
+	if (__console_irow >= __console_charperh)
     {
 		console_scrolldown();
-		__console_irow= __console_charperh-2;
+		__console_irow= __console_charperh-1;
 	}
 }
 
@@ -294,10 +294,10 @@ void console_print_number_hex(int num, int digits)
 		}
 
 		if (!__console_silent)
-		if (__console_irow >= __console_charperh-1)
+		if (__console_irow >= __console_charperh)
         {
 			console_scrolldown();
-			__console_irow= __console_charperh-2;
+			__console_irow= __console_charperh-1;
 		}
 
 		if (na[i] < 10)
@@ -347,10 +347,10 @@ void console_printf(char* str, ...)
 		}
 
 		if (!__console_silent)
-		if (__console_irow >= __console_charperh-1)
+		if (__console_irow >= __console_charperh)
         {
 			console_scrolldown();
-			__console_irow= __console_charperh-2;
+			__console_irow= __console_charperh-1;
 		}
 
 		if (str[c] == '&' && str[c+1] == 'n') {c++; tsz--; if (!__console_silent) console_newline(); if (!__console_silent) __console_icolumn--;}
@@ -396,10 +396,10 @@ void console_prints(char* str)
 		}
 
 		if (!__console_silent)
-		if (__console_irow >= __console_charperh-1)
+		if (__console_irow >= __console_charperh)
         {
 			console_scrolldown();
-			__console_irow= __console_charperh-2;
+			__console_irow= __console_charperh-1;
 		}
 
 		if (str[c] == '&' && str[c+1] == 'n') {c++; tsz--; if (!__console_silent) console_newline(); if (!__console_silent) __console_icolumn--;}

@@ -129,9 +129,6 @@ void go_console_keyboard(void (*fnptr)(char*))
 
 	void drawin()
     {
-		//draw_set_color(c_red);
-		//draw_text(2, 120, "%d", inlen-kbstring_len);
-
 		int iy= __console_irow;
 		int ix= start_column-start_index-1;
 
@@ -143,7 +140,7 @@ void go_console_keyboard(void (*fnptr)(char*))
 			} else
 				ix++;
 
-			if (iy >= __console_charperh-1)
+			if (iy >= __console_charperh)
 				return;
 
 			draw_set_color(__keyboard_txtbgcol);//__console_bgcol);
