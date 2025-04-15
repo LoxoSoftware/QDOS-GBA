@@ -22,9 +22,11 @@
     #include <gba_interrupt.h>
 #endif
 
-#define SYSCALL_TRIGGER     DMA0CNT=DMA_IRQ|DMA_ENABLE|DMA_IMMEDIATE;REG_DMA0CNT=0
-#define SYSCALL_ARGBASE     ((u8*)(EWRAM+EWRAM_SIZE-16))
-#define SYSCALL_ARGS        ((syscall_args_t*)SYSCALL_ARGBASE)
+#define SYSCALL_TRIGGER         DMA0CNT=DMA_IRQ|DMA_ENABLE|DMA_IMMEDIATE;REG_DMA0CNT=0
+#define SYSCALL_ARGBASE         ((u8*)(EWRAM+EWRAM_SIZE-16))
+#define SYSCALL_ARGS            ((syscall_args_t*)SYSCALL_ARGBASE)
+
+#define SYSCALL_PRINT_MAXLEN    2048
 
 typedef u16 syscall_t;
 #define SCALL_CONSOLE_PRINT 1
@@ -35,12 +37,13 @@ typedef u16 syscall_t;
 #define SCALL_WRITE         6
 #define SCALL_RENAME        7
 #define SCALL_UNLINK        8
-#define SCALL_LSEEK         9
+#define SCALL_FSEEK         9
 #define SCALL_EXECVE        10
 #define SCALL_EXIT          11
 #define SCALL_KILL          12
 #define SCALL_STATFS        13
 #define SCALL_CREAT         14
+#define SCALL_FTELL         15
 
 typedef struct syscall_args_s
 {
@@ -53,7 +56,10 @@ typedef struct syscall_args_s
 
 bool dbg_syscall= true;
 
-ARM_CODE void isr_IRQReceiver()
+#define syscall_throw(msg, args)    console_printf("0x%h: "msg"&n",retptr,args)
+
+ARM_CODE
+void isr_IRQReceiver()
 {
     //Handle syscalls
 
@@ -61,43 +67,70 @@ ARM_CODE void isr_IRQReceiver()
     // draw_clear(c_yellow);
     // draw_clear(c_green);
 
-    //asm("\t movl %%ebx,%0" : "=r"(i)); //Get register value
+    register u32 retptr asm("lr");
 
     switch(SYSCALL_ARGS->function)
     {
         case SCALL_CONSOLE_PRINT:
-            console_prints((char*)(SYSCALL_ARGS->arg1));
+            u16 len= 0;
+            char* strptr= (char*)(SYSCALL_ARGS->arg1);
+            do
+            {
+                if (strptr[len])
+                {
+                    len++;
+                    if (len > SYSCALL_PRINT_MAXLEN+1)
+                    {
+                        if (dbg_syscall)
+                            syscall_throw("refusing to print string longer than %d chars", SYSCALL_PRINT_MAXLEN);
+                        goto end_syscall_parse;
+                    }
+                }
+                else
+                    break;
+            }
+            while (len <= SYSCALL_PRINT_MAXLEN+1);
+            console_prints(strptr);
             break;
         case SCALL_CONSOLE_DRAW:
             console_drawbuffer();
             break;
         case SCALL_OPEN:
+            SYSCALL_ARGS->arg0= fs_fopen((char*)(SYSCALL_ARGS->arg1), (char)(SYSCALL_ARGS->arg0));
+            if ((s16)(SYSCALL_ARGS->arg0) < 0)
+                syscall_throw("I/O error: %s", fs_error);
+            break;
         case SCALL_CLOSE:
+            fs_fclose((fdesc_t)(SYSCALL_ARGS->arg0));
+            break;
         case SCALL_READ:
+            SYSCALL_ARGS->arg0= fs_fread((fdesc_t)(SYSCALL_ARGS->arg0));
+            break;
         case SCALL_WRITE:
+            fs_fwrite((fdesc_t)(SYSCALL_ARGS->arg0), (u8)(SYSCALL_ARGS->arg1));
+            break;
+        case SCALL_FSEEK:
+            fs_fseek((fdesc_t)(SYSCALL_ARGS->arg0), (u8)(SYSCALL_ARGS->arg1));
+            break;
+        case SCALL_FTELL:
+            SYSCALL_ARGS->arg0= fs_ftell((fdesc_t)(SYSCALL_ARGS->arg0));
+            break;
         case SCALL_RENAME:
         case SCALL_UNLINK:
-        case SCALL_LSEEK:
         case SCALL_EXECVE:
         case SCALL_EXIT:
         case SCALL_KILL:
         case SCALL_STATFS:
         case SCALL_CREAT:
-            if (dbg_syscall)
-            {
-                console_printf("SYSCALL: %d: function not implemented&n&n", SYSCALL_ARGS->function);
-                console_drawbuffer();
-            }
+            syscall_throw("%d: function not implemented", SYSCALL_ARGS->function);
             break;
         default:
             //Ignore
             if (dbg_syscall)
-            {
-                console_printf("SYSCALL: %d: undefined systemcall&n", SYSCALL_ARGS->function);
-                console_drawbuffer();
-            }
+                syscall_throw("%d: undefined syscall", SYSCALL_ARGS->function);
             break;
     }
 
+end_syscall_parse:
     //memset(SYSCALL_ARGBASE, 0, 16);
 }
