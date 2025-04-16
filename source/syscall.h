@@ -113,7 +113,7 @@ void isr_IRQReceiver()
             fs_fseek((fdesc_t)(SYSCALL_ARGS->arg0), (u8)(SYSCALL_ARGS->arg1));
             break;
         case SCALL_FTELL:
-            SYSCALL_ARGS->arg0= fs_ftell((fdesc_t)(SYSCALL_ARGS->arg0));
+            SYSCALL_ARGS->arg1= fs_ftell((fdesc_t)(SYSCALL_ARGS->arg0));
             break;
         case SCALL_RENAME:
         case SCALL_UNLINK:
