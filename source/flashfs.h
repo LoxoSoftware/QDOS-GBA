@@ -758,7 +758,8 @@ u32 fs_ftell(fdesc_t fd)
     fhandle_t* hdl= fd_get_handle(fd);
     if (!hdl) return 0;
 
-    return read32(&hdl->file->size)-(hdl->cursor); //hdl->cursor;
+    s32 result= read32(&hdl->file->size)-(hdl->cursor);
+    return result>=0?result:0;
 }
 
 inline void fs_flush()
