@@ -63,6 +63,8 @@
 #define IVGA_AQUA				14
 #define IVGA_WHITE				15
 
+#define __CONSOLE_CHFMT(ch)		(ch+((__console_fgcol&0x0F)<<12)+((__console_bgcol&0x0F)<<8))
+
 const u16 vga_palette[16]=
 {
 	VGA_BLACK, VGA_DKRED, VGA_DKGREEN, VGA_DKYELLOW,
@@ -72,13 +74,13 @@ const u16 vga_palette[16]=
 };
 
 					//X					  Y
-u8 __console_buffer[__console_charperw][__console_charperh];
+u16 __console_buffer[__console_charperw][__console_charperh];
 char __console_stdout[512]; int __console_stdout_index= 0;
 
 int __console_icolumn= 0;
 int __console_irow= 0;
-u16 __console_bgcol= VGA_BLACK;
-u16 __console_fgcol= VGA_GRAY;
+u8 __console_bgcol= IVGA_BLACK;
+u8 __console_fgcol= IVGA_GRAY;
 bool __console_silent= false;
 u32 __console_frames= 0;
 bool __console_initialized= false;
@@ -109,7 +111,7 @@ void console_clear()
     {
 		for(int ix= 0; ix<__console_charperw; ix++)
         {
-			__console_buffer[ix][iy]= ' ';
+			__console_buffer[ix][iy]= __CONSOLE_CHFMT(' ');
 		}
 	}
 }
@@ -128,11 +130,11 @@ void console_init()
 	__console_initialized= true;
 }
 
-void console_colors(u16 bgcol, u16 fgcol, u16 cursorcol)
+void console_colors(u8 bgcol, u8 fgcol, u8 cursorcol)
 {
 	__console_bgcol= bgcol;
 	__console_fgcol= fgcol;
-	SPRITE_PALETTE[1]= cursorcol;
+	SPRITE_PALETTE[__console_cur_palind]= vga_palette[cursorcol];
 }
 
 IWRAM_CODE ARM_CODE
@@ -142,16 +144,18 @@ void console_drawbuffer()
 	__console_stdout_index= 0;
 	memset(__console_stdout, '\0', sizeof(__console_stdout));
 
-	for(int iy= 0; iy<__console_charperh; iy++) {
+	for(int iy= 0; iy<__console_charperh; iy++)
+	{
+		for(int ix= 0; ix<__console_charperw; ix++)
+		{
+			u16 tch= __console_buffer[ix][iy];
 
-		for(int ix= 0; ix<__console_charperw; ix++) {
-
-			draw_set_color(__console_bgcol);
+			draw_set_color(vga_palette[(tch&0x0F00)>>8]);
 			if (iy*__console_charh-__console_yoffset >= 0)
-			draw_rectangle(ix*__console_charw, iy*__console_charh-__console_yoffset, (ix+1)*__console_charw, (iy+1)*__console_charh-__console_yoffset, 0);
-			draw_set_color(__console_fgcol);
+				draw_rectangle(ix*__console_charw, iy*__console_charh-__console_yoffset, (ix+1)*__console_charw, (iy+1)*__console_charh-__console_yoffset, 0);
+			draw_set_color(vga_palette[(tch&0xF000)>>12]);
 			if (iy*__console_charh-__console_yoffset >= 0)
-			draw_char(ix*__console_charw, iy*__console_charh-__console_yoffset, __console_buffer[ix][iy]);
+				draw_char(ix*__console_charw, iy*__console_charh-__console_yoffset, tch&0x00FF);
 		}
 	}
 }
@@ -165,7 +169,7 @@ void console_scrolldown()
 		for(int ix= 0; ix<__console_charperw; ix++)
         {
 			if (iy == __console_charperh)
-				__console_buffer[ix][iy-1]= ' ';
+				__console_buffer[ix][iy-1]= __CONSOLE_CHFMT(' ');
 			else
 				__console_buffer[ix][iy-1] = __console_buffer[ix][iy];
 		}
@@ -193,7 +197,7 @@ void console_print_number(int num)
 
 	if (num == 0)
     {
-		__console_buffer[__console_icolumn][__console_irow]= '0';
+		__console_buffer[__console_icolumn][__console_irow]= __CONSOLE_CHFMT('0');
 		return;
 
 	} else if (num > 0)
@@ -238,7 +242,8 @@ void console_print_number(int num)
 
 		if (na[i] != 69)
         {
-			if (!__console_silent) __console_buffer[__console_icolumn][__console_irow]= na[i]+'0';
+			if (!__console_silent) __console_buffer[__console_icolumn][__console_irow]=
+				__CONSOLE_CHFMT(na[i]+'0');
 			if (__console_stdout_index < sizeof(__console_stdout))
             {
 				__console_stdout[__console_stdout_index]= na[i]+'0';
@@ -246,7 +251,8 @@ void console_print_number(int num)
 			}
 		}
 		else {
-			if (!__console_silent) __console_buffer[__console_icolumn][__console_irow]= '-';
+			if (!__console_silent) __console_buffer[__console_icolumn][__console_irow]=
+				__CONSOLE_CHFMT('-');
 			if (__console_stdout_index < sizeof(__console_stdout))
             {
 				__console_stdout[__console_stdout_index]= '-';
@@ -268,7 +274,8 @@ void console_print_number_hex(int num, int digits)
 
 	if (num == 0)
     {
-		__console_buffer[__console_icolumn][__console_irow]= '0';
+		__console_buffer[__console_icolumn][__console_irow]=
+			__CONSOLE_CHFMT('0');
 		return;
 
 	} else if (num > 0)
@@ -302,7 +309,8 @@ void console_print_number_hex(int num, int digits)
 
 		if (na[i] < 10)
         {
-			if (!__console_silent) __console_buffer[__console_icolumn][__console_irow]= na[i]+'0';
+			if (!__console_silent) __console_buffer[__console_icolumn][__console_irow]=
+				__CONSOLE_CHFMT(na[i]+'0');
 			if (__console_stdout_index < sizeof(__console_stdout))
             {
 				__console_stdout[__console_stdout_index]= na[i]+'0';
@@ -311,7 +319,8 @@ void console_print_number_hex(int num, int digits)
 		}
 		else
         {
-			if (!__console_silent) __console_buffer[__console_icolumn][__console_irow]= na[i]+'a'-10;
+			if (!__console_silent) __console_buffer[__console_icolumn][__console_irow]=
+				__CONSOLE_CHFMT(na[i]+'a'-10);
 			if (__console_stdout_index < sizeof(__console_stdout))
             {
 				__console_stdout[__console_stdout_index]= na[i]+'a'-10;
@@ -362,8 +371,10 @@ void console_printf(char* str, ...)
 		if (str[c] == '%' && str[c+1] == 'h') {c++; tsz--; console_print_number_hex(va_arg(valist, int),-1);}
 		else
         {
-			if (!__console_silent) __console_buffer[__console_icolumn][__console_irow]= str[c];
-			if (__console_stdout_index < sizeof(__console_stdout)) {
+			if (!__console_silent)
+				__console_buffer[__console_icolumn][__console_irow]= __CONSOLE_CHFMT(str[c]);
+			if (__console_stdout_index < sizeof(__console_stdout))
+			{
 				__console_stdout[__console_stdout_index]= str[c];
 				__console_stdout_index++;
 			}
@@ -405,8 +416,10 @@ void console_prints(char* str)
 		if (str[c] == '&' && str[c+1] == 'n') {c++; tsz--; if (!__console_silent) console_newline(); if (!__console_silent) __console_icolumn--;}
 		else
         {
-			if (!__console_silent) __console_buffer[__console_icolumn][__console_irow]= str[c];
-			if (__console_stdout_index < sizeof(__console_stdout)) {
+			if (!__console_silent)
+				__console_buffer[__console_icolumn][__console_irow]= __CONSOLE_CHFMT(str[c]);
+			if (__console_stdout_index < sizeof(__console_stdout))
+			{
 				__console_stdout[__console_stdout_index]= str[c];
 				__console_stdout_index++;
 			}
