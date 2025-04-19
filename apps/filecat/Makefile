@@ -49,10 +49,10 @@ export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib)
 
 #---------------------------------------------------------------------------------
 build:
-	@arm-none-eabi-gcc ./main.c -nostdlib \
+	@$(DEVKITARM)/bin/arm-none-eabi-gcc ./main.c -nostdlib \
 	$(CFLAGS) $(ASFLAGS) $(LDFLAGS) $(INCLUDE) $(LIBPATHS) $(LIBS) \
 	-o ./$(TARGET).elf
-	@arm-none-eabi-strip --strip-section-headers --strip-debug $(TARGET).elf -o $(TARGET).qdos
+	@$(DEVKITARM)/bin/arm-none-eabi-strip --strip-section-headers --strip-debug $(TARGET).elf -o $(TARGET).qdos
 	@echo "Binary usage:"
 	@du $(TARGET).qdos --bytes -h
 
