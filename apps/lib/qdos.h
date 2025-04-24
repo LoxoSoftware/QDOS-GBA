@@ -32,6 +32,7 @@ int _start()
 #define SCALL_STATFS        13
 #define SCALL_CREAT         14
 #define SCALL_FTELL         15
+#define SCALL_FSFLUSH       16
 
 typedef struct syscall_args_s
 {
@@ -71,7 +72,8 @@ typedef s16 fdesc_t;                //File descriptor
 
 #define syscall(fun) \
     SYSCALL_ARGS->function= fun; \
-    REG_DMA0CNT=DMA_IRQ|DMA_ENABLE|DMA_IMMEDIATE;
+    REG_DMA0CNT=DMA_IRQ|DMA_ENABLE|DMA_IMMEDIATE; \
+    asm volatile ("NOP"); asm volatile ("NOP");
 
 void print(char* str)
 {
@@ -86,8 +88,6 @@ fdesc_t fopen(char* fname, char mode)
     SYSCALL_ARGS->arg1= (u32)fname;
     SYSCALL_ARGS->arg0= mode;
     syscall(SCALL_OPEN);
-    asm volatile ("NOP");
-    asm volatile ("NOP");
     return (fdesc_t)SYSCALL_ARGS->arg0;
 }
 
@@ -101,8 +101,6 @@ u8 fread(fdesc_t fd)
 {
     SYSCALL_ARGS->arg0= fd;
     syscall(SCALL_READ);
-    asm volatile ("NOP");
-    asm volatile ("NOP");
     return (u8)SYSCALL_ARGS->arg0;
 }
 
@@ -113,14 +111,21 @@ void fwrite(fdesc_t fd, u8 ch)
     syscall(SCALL_WRITE);
 }
 
+void fseek(fdesc_t fd, u32 pos)
+{
+    SYSCALL_ARGS->arg0= fd;
+    SYSCALL_ARGS->arg1= pos;
+    syscall(SCALL_FSEEK);
+}
+
 u32 ftell(fdesc_t fd)
 {
     SYSCALL_ARGS->arg0= fd;
     syscall(SCALL_FTELL);
-    asm volatile ("NOP");
-    asm volatile ("NOP");
     return SYSCALL_ARGS->arg1;
 }
+
+void flushfs() { syscall(SCALL_FSFLUSH); }
 
 void _putchar(char ch)
 {
