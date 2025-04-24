@@ -44,6 +44,7 @@ typedef u16 syscall_t;
 #define SCALL_STATFS        13
 #define SCALL_CREAT         14
 #define SCALL_FTELL         15
+#define SCALL_FSFLUSH       16
 
 typedef struct syscall_args_s
 {
@@ -56,7 +57,7 @@ typedef struct syscall_args_s
 
 bool dbg_syscall= true;
 
-#define syscall_throw(msg, args)    console_printf("0x%h: "msg"&n",retptr,args)
+#define syscall_throw(msg, args...)    console_printf("0x%h: "msg"&n",retptr,args)
 
 ARM_CODE
 void isr_IRQReceiver()
@@ -99,9 +100,13 @@ void isr_IRQReceiver()
             SYSCALL_ARGS->arg0= fs_fopen((char*)(SYSCALL_ARGS->arg1), (char)(SYSCALL_ARGS->arg0));
             if ((s16)(SYSCALL_ARGS->arg0) < 0)
                 syscall_throw("I/O error: %s", fs_error);
+            if (dbg_syscall)
+                syscall_throw("fopen() returned %d", SYSCALL_ARGS->arg0);
             break;
         case SCALL_CLOSE:
             fs_fclose((fdesc_t)(SYSCALL_ARGS->arg0));
+            if (dbg_syscall)
+                syscall_throw("file #%d is now closed", (fdesc_t)(SYSCALL_ARGS->arg0));
             break;
         case SCALL_READ:
             SYSCALL_ARGS->arg0= fs_fread((fdesc_t)(SYSCALL_ARGS->arg0));
@@ -111,9 +116,16 @@ void isr_IRQReceiver()
             break;
         case SCALL_FSEEK:
             fs_fseek((fdesc_t)(SYSCALL_ARGS->arg0), (u8)(SYSCALL_ARGS->arg1));
+            if (dbg_syscall)
+                syscall_throw("seek to 0x%h of file #%d", (u8)(SYSCALL_ARGS->arg1), (fdesc_t)(SYSCALL_ARGS->arg0));
             break;
         case SCALL_FTELL:
             SYSCALL_ARGS->arg1= fs_ftell((fdesc_t)(SYSCALL_ARGS->arg0));
+            break;
+        case SCALL_FSFLUSH:
+            if (dbg_syscall)
+                syscall_throw("Writing sector buffer to FLASH...", 0);
+            fs_flush();
             break;
         case SCALL_RENAME:
         case SCALL_UNLINK:
