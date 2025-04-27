@@ -34,9 +34,7 @@
 #include "flashfs.h"
 
 #define OS_NAME 		"QDOS"
-#define OS_VERSION 		"0.0.10.0"
-
-#define GETBIT(x,n) 	(((x) >> (n)) & 1)
+#define OS_VERSION 		"0.0.10.1"
 
 #define ROMFS_DOMAIN    romfs, romfs_sz/sizeof(file_t*)
 
@@ -46,7 +44,7 @@ int main()
 {
 	display_init();
 	console_init();
-	console_colors(c_black, c_ltgray, c_ltgray);
+	console_colors(IVGA_BLACK, IVGA_GRAY, IVGA_RED);
 
 	//Setup hardware interrupt for syscalls
 	//	(sadly I can't use software interrupts)
