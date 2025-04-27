@@ -155,7 +155,7 @@ void fl_drop4k(u8 sector)
     mdelay(100);
 }
 
-IWRAM_CODE void fl_erase4k(u8 sector)
+IWRAM_CODE ARM_CODE void fl_erase4k(u8 sector)
 {
     //Backup the sector before erasing it
     for (int i=0; i<4096; i++)
@@ -167,7 +167,7 @@ IWRAM_CODE void fl_erase4k(u8 sector)
     //      instead of directly manipulating the flash
 }
 
-IWRAM_CODE void fl_get4k(u8 sector)
+IWRAM_CODE ARM_CODE void fl_get4k(u8 sector)
 {
     for (int i=0; i<4096; i++)
         fl_secbuf[i]= ((u8*)SRAM)[sector*0x1000+i];
@@ -175,14 +175,14 @@ IWRAM_CODE void fl_get4k(u8 sector)
 }
 
 void fl_writeDirect(u32 ofs, u8 value);
-IWRAM_CODE void fl_restore4k()
+IWRAM_CODE ARM_CODE void fl_restore4k()
 {
     fl_drop4k(fl_lastsector);
     for (int i=0; i<4096; i++)
         fl_writeDirect(fl_lastsector*0x1000+i, fl_secbuf[i]);
 }
 
-IWRAM_CODE void fl_writeDirect(u32 ofs, u8 value)
+IWRAM_CODE ARM_CODE void fl_writeDirect(u32 ofs, u8 value)
 {
     if (ofs>>16 != fl_prevbank)
         fl_selbank((ofs-SRAM)>>16);
@@ -195,7 +195,7 @@ IWRAM_CODE void fl_writeDirect(u32 ofs, u8 value)
     while(*(u8*)(SRAM+ofs) != value) ;
 }
 
-IWRAM_CODE void fl_write8(u8* ptr, u8 value)
+IWRAM_CODE ARM_CODE void fl_write8(u8* ptr, u8 value)
 {
     //NOTE: Does not write directly to flash, writes to the buffer
     //      you can access it with SRAM addresses
@@ -210,7 +210,6 @@ IWRAM_CODE void fl_write8(u8* ptr, u8 value)
 
     if (ofs>>16 != fl_prevbank)
         fl_selbank(ofs>>16);
-    ofs &= 0xFFFF;
 
     if (ofs < 0x1000*fl_lastsector || ofs >= 0x1000*(fl_lastsector+1))
     {
@@ -222,11 +221,13 @@ IWRAM_CODE void fl_write8(u8* ptr, u8 value)
             fl_erase4k(fl_lastsector+1);
     }
 
-    fl_secbuf[ofs]= value;
+    fl_secbuf[ofs&0x0FFF]= value;
 }
 
-IWRAM_CODE u8 fl_read8(u8* ptr)
+IWRAM_CODE ARM_CODE u8 fl_read8(u8* ptr)
 {
+    //TODO: Implement buffer-first reading like in fl_write8
+
     u32 ofs= (u32)ptr-SRAM;
 
     if (ofs < 0 && ofs >= SRAM_MAX)
@@ -234,14 +235,14 @@ IWRAM_CODE u8 fl_read8(u8* ptr)
 
     if (ofs>>16 != fl_prevbank)
         fl_selbank(ofs>>16);
-    ofs &= 0xFFFF;
+    ofs &= 0x0FFF;
 
     return ((u8*)SRAM)[ofs];
 }
 
 /// Filesystem implementation ///
 
-IWRAM_CODE int _strcmp(char* str1, char* str2)
+IWRAM_CODE ARM_CODE int _strcmp(char* str1, char* str2)
 {
     if (!str1 || !str2)
         return -1;
@@ -254,7 +255,7 @@ IWRAM_CODE int _strcmp(char* str1, char* str2)
     }
 }
 
-IWRAM_CODE int _strncmp(char* str1, char* str2, u16 max)
+IWRAM_CODE ARM_CODE int _strncmp(char* str1, char* str2, u16 max)
 {
     if (!str1 || !str2)
         return -1;
