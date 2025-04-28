@@ -101,7 +101,7 @@ u8 fl_secbuf[4096];     //Sector cache
 inline void mdelay(int delay)
 {
     for (int i=0; i<delay; i++)
-        asm volatile ("NOP");
+        asm volatile ("MOV R11,R11");
 }
 
 inline void fl_wspoke(u16 offset, u8 val)
