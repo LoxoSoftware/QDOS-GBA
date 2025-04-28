@@ -125,7 +125,7 @@ void execute_command(char* cmd)
     if (!strcmp(cmdtok[0],"m"))
     {
         console_printf("FLASH: %d KiB free&n", (sram_size-fs_used())/1024);
-        console_printf("EWRAM: %d KiB free&n", EWRAM_SIZE/1024);
+        console_printf("EWRAM: %d KiB free&n", (EWRAM_SIZE-ewram_used)/1024);
     }
     else
     if (!strcmp(cmdtok[0],"c"))

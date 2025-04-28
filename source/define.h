@@ -45,8 +45,10 @@ bool  __keyboard_autohide= true;
 u16   __keyboard_txtfgcol= c_black;
 u16   __keyboard_txtbgcol= c_aqua;
 
-#define IWRAM_SIZE  32768
-#define EWRAM_SIZE  262144
+#define IWRAM_SIZE  (IWRAM_END-IWRAM)   //32k
+#define EWRAM_SIZE  (EWRAM_END-EWRAM)   //256k
 #define SRAM_SIZE   sram_size
 
-#define MBCODE_SIZE 131072
+#define MBCODE_SIZE (EWRAM_SIZE>>1)     //128k hard limit
+
+#define MALLOCS_MAX    32

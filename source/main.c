@@ -26,6 +26,7 @@
 #include "define.h"
 #include "video.h"
 #include "console.h"
+#include "mallocw.h"
 #include "command.h"
 #include "keyboard.h"
 #include "irq.h"

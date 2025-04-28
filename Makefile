@@ -45,7 +45,8 @@ CFLAGS	+=	$(INCLUDE)
 CXXFLAGS	:=	$(CFLAGS) -fno-rtti -fno-exceptions
 
 ASFLAGS	:=	-g $(ARCH)
-LDFLAGS	=	-g $(ARCH) -Wl,-Map,$(notdir $*.map),--print-memory-usage
+LDFLAGS	=	-g $(ARCH) -Wl,-Map,$(notdir $*.map),--print-memory-usage\
+		-Wl,--wrap=malloc,--wrap=calloc,--wrap=realloc,--wrap=free
 
 #---------------------------------------------------------------------------------
 # any extra libraries we wish to link with the project
