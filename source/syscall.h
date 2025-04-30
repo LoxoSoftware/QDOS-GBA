@@ -91,7 +91,7 @@ void isr_IRQReceiver()
                     break;
             }
             while (len <= SYSCALL_PRINT_MAXLEN+1);
-            console_prints(strptr);
+            console_printf(strptr);
             break;
         case SCALL_CONSOLE_DRAW:
             console_drawbuffer();
