@@ -57,7 +57,7 @@ typedef struct syscall_args_s
 
 bool dbg_syscall= true;
 
-#define syscall_throw(msg, args...)    console_printf("0x%h: "msg"&n",retptr,args)
+#define syscall_throw(msg, args...)    console_printf("%p: "msg"&n",retptr,args)
 
 ARM_CODE
 void isr_IRQReceiver()
@@ -117,7 +117,7 @@ void isr_IRQReceiver()
         case SCALL_FSEEK:
             fs_fseek((fdesc_t)(SYSCALL_ARGS->arg0), (u8)(SYSCALL_ARGS->arg1));
             if (dbg_syscall)
-                syscall_throw("seek to 0x%h of file #%d", (u8)(SYSCALL_ARGS->arg1), (fdesc_t)(SYSCALL_ARGS->arg0));
+                syscall_throw("seek to %p of file #%d", (u8)(SYSCALL_ARGS->arg1), (fdesc_t)(SYSCALL_ARGS->arg0));
             break;
         case SCALL_FTELL:
             SYSCALL_ARGS->arg1= fs_ftell((fdesc_t)(SYSCALL_ARGS->arg0));

@@ -35,22 +35,22 @@ char cmd_argv[CMD_TOKEN_SIZE*CMD_TOKEN_MAX];
 
 void main_checkerr(int error)
 {
-	if(error != 0)
-	{
-		//console_colors(c_maroon, c_yellow, c_red);
-		console_redrawrow(__console_irow-1, "x\xb3");
-		console_printf("returned %d&n", error);
-		console_drawbuffer();
-
-	} else if (!error)
-	{
-		console_redrawrow(__console_irow-1, "\xdf\xb3");
-		console_drawbuffer();
-	}
+	// if(error != 0)
+	// {
+	// 	//console_colors(c_maroon, c_yellow, c_red);
+	// 	console_redrawrow(__console_irow-1, "x\xb3");
+	// 	console_printf("returned %d&n", error);
+	// 	console_drawbuffer();
+ //
+	// } else if (!error)
+	// {
+	// 	console_redrawrow(__console_irow-1, "\xdf\xb3");
+	// 	console_drawbuffer();
+	// }
 }
 
-void command_prompt() {
-
+void command_prompt()
+{
 	console_printf(__com_promptstr);
 	console_drawbuffer();
 	__com_prompt_active= false;
@@ -146,7 +146,7 @@ void execute_command(char* cmd)
             addr2= (u8*)strtol(cmdtok[2],NULL,16);
 
         if (!addr2)
-            console_printf("%h&n", *addr1);
+            console_printf("%x&n", *addr1);
         else
         {
             //Print monitor
@@ -160,11 +160,11 @@ void execute_command(char* cmd)
                         console_printf("0");
                     if (!((ix/0x1000)%0x10))
                         console_printf("0");
-                    console_printf("%h: ", ix%0x10000);
+                    console_printf("%x: ", ix%0x10000);
                 }
                 if (*(u8*)ix<10)
                     console_printf("0");
-                console_printf("%h ", *(u8*)ix);
+                console_printf("%x ", *(u8*)ix);
                 ix++;
                 if (!(ix%8))
                 {
@@ -195,7 +195,7 @@ void execute_command(char* cmd)
         {
             addr= (u8*)strtol(cmdtok[1],NULL,16);
             *addr= (u8)strtol(cmdtok[2],NULL,16);
-            console_printf("%h&n", *addr);
+            console_printf("%x&n", *addr);
         }
         if (tokc>3)
         {
@@ -245,7 +245,7 @@ void execute_command(char* cmd)
     }
 
 endparse:
-    //console_printf("%h&n",cmdtok[0]);
+    //console_printf("%x&n",cmdtok[0]);
     keyboard_clear();
     cmdtok[0]=0;
 }

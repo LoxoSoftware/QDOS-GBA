@@ -30,6 +30,8 @@
 #define __console_cur_palind	255
 #define __console_cur_sprind	127
 
+#define __console_print_maxch	2048
+
 #define VGA_BLACK				RGB5(0,0,0)
 #define VGA_DKRED				RGB5(16,0,0)
 #define VGA_DKGREEN				RGB5(0,16,0)
@@ -178,259 +180,6 @@ void console_scrolldown()
 	//console_drawbuffer()
 }
 
-void console_newline()
-{
-	__console_irow++;
-	__console_icolumn=0;
-
-	if (__console_irow >= __console_charperh)
-    {
-		console_scrolldown();
-		__console_irow= __console_charperh-1;
-	}
-}
-
-void console_print_number(int num)
-{
-	short inlen= 9;
-	unsigned int na[inlen];
-
-	if (num == 0)
-    {
-		__console_buffer[__console_icolumn][__console_irow]= __CONSOLE_CHFMT('0');
-		return;
-
-	} else if (num > 0)
-    {
-		//Number to digits
-		for(int i=0; i<=inlen;i++)
-        {
-        	if (num < 1) { inlen= i; break; }
-			na[i]= num%10;
-        	num/=10;
-    	}
-
-	} else
-    {
-		//Number to digits (negative)
-		//na[0]= 69; //Minus sign instead of the digit
-		num *= -1;
-		for(int i=0; i<=inlen;i++)
-        {
-        	if (num < 1) { na[i]=69; inlen= i+1; break; }
-			na[i]= num%10;
-        	num/=10;
-    	}
-	}
-
-	for (int i=inlen-1; i>=0; i--)
-    {
-        //Print the digits on to the buffer
-		if (!__console_silent)
-		if (__console_icolumn >= __console_charperw)
-        {
-			__console_icolumn= 0;
-			__console_irow++;
-		}
-
-		if (!__console_silent)
-		if (__console_irow >= __console_charperh-1)
-        {
-			console_scrolldown();
-			__console_irow= __console_charperh-2;
-		}
-
-		if (na[i] != 69)
-        {
-			if (!__console_silent) __console_buffer[__console_icolumn][__console_irow]=
-				__CONSOLE_CHFMT(na[i]+'0');
-			if (__console_stdout_index < sizeof(__console_stdout))
-            {
-				__console_stdout[__console_stdout_index]= na[i]+'0';
-				__console_stdout_index++;
-			}
-		}
-		else {
-			if (!__console_silent) __console_buffer[__console_icolumn][__console_irow]=
-				__CONSOLE_CHFMT('-');
-			if (__console_stdout_index < sizeof(__console_stdout))
-            {
-				__console_stdout[__console_stdout_index]= '-';
-				__console_stdout_index++;
-			}
-		}
-
-		__console_icolumn++;
-	}
-
-	__console_icolumn--;
-}
-
-void console_print_number_hex(int num, int digits)
-{
-	//if 'digits' is -1, the length is automatic
-	short inlen= 9;
-	unsigned int na[inlen];
-
-	if (num == 0)
-    {
-		__console_buffer[__console_icolumn][__console_irow]=
-			__CONSOLE_CHFMT('0');
-		return;
-
-	} else if (num > 0)
-    {
-		//Number to digits
-		for(int i=0; i<=inlen;i++)
-        {
-        	if (num < 1) { inlen= i; break; }
-			na[i]= num%16;
-        	num/=16;
-    	}
-	} else return;
-
-	for (int i=inlen-1; i>=0; i--)
-    {
-        //Print the digits on to the buffer
-
-		if (!__console_silent)
-		if (__console_icolumn >= __console_charperw)
-        {
-			__console_icolumn= 0;
-			__console_irow++;
-		}
-
-		if (!__console_silent)
-		if (__console_irow >= __console_charperh)
-        {
-			console_scrolldown();
-			__console_irow= __console_charperh-1;
-		}
-
-		if (na[i] < 10)
-        {
-			if (!__console_silent) __console_buffer[__console_icolumn][__console_irow]=
-				__CONSOLE_CHFMT(na[i]+'0');
-			if (__console_stdout_index < sizeof(__console_stdout))
-            {
-				__console_stdout[__console_stdout_index]= na[i]+'0';
-				__console_stdout_index++;
-			}
-		}
-		else
-        {
-			if (!__console_silent) __console_buffer[__console_icolumn][__console_irow]=
-				__CONSOLE_CHFMT(na[i]+'a'-10);
-			if (__console_stdout_index < sizeof(__console_stdout))
-            {
-				__console_stdout[__console_stdout_index]= na[i]+'a'-10;
-				__console_stdout_index++;
-			}
-		}
-
-		__console_icolumn++;
-	}
-
-	__console_icolumn--;
-}
-
-void console_printf(char* str, ...)
-{
-	va_list valist;
-	va_start(valist, (int)str[0]);
-
-	int tsz= 0;
-
-	while(str[tsz] != '\0')
-		tsz++;
-
-	int c= 0;
-
-	while(tsz)
-    {
-		if (!__console_silent)
-		if (__console_icolumn >= __console_charperw)
-        {
-			__console_icolumn= 0;
-			__console_irow++;
-		}
-
-		if (!__console_silent)
-		if (__console_irow >= __console_charperh)
-        {
-			console_scrolldown();
-			__console_irow= __console_charperh-1;
-		}
-
-		if (str[c] == '&' && str[c+1] == 'n') {c++; tsz--; if (!__console_silent) console_newline(); if (!__console_silent) __console_icolumn--;}
-		else
-		if (str[c] == '%' && str[c+1] == 's') {c++; tsz--; console_printf(va_arg(valist, char*)); if (!__console_silent) __console_icolumn--;}
-		else
-		if (str[c] == '%' && str[c+1] == 'd') {c++; tsz--; console_print_number(va_arg(valist, int));}
-		else
-		if (str[c] == '%' && str[c+1] == 'h') {c++; tsz--; console_print_number_hex(va_arg(valist, int),-1);}
-		else
-        {
-			if (!__console_silent)
-				__console_buffer[__console_icolumn][__console_irow]= __CONSOLE_CHFMT(str[c]);
-			if (__console_stdout_index < sizeof(__console_stdout))
-			{
-				__console_stdout[__console_stdout_index]= str[c];
-				__console_stdout_index++;
-			}
-		}
-
-		if (!__console_silent) __console_icolumn++;
-		c++;
-		tsz--;
-	}
-
-	va_end(valist);
-}
-
-void console_prints(char* str)
-{
-	int tsz= 0;
-
-	while(str[tsz] != '\0')
-		tsz++;
-
-	int c= 0;
-
-	while(tsz) {
-
-		if (!__console_silent)
-		if (__console_icolumn >= __console_charperw)
-        {
-			__console_icolumn= 0;
-			__console_irow++;
-		}
-
-		if (!__console_silent)
-		if (__console_irow >= __console_charperh)
-        {
-			console_scrolldown();
-			__console_irow= __console_charperh-1;
-		}
-
-		if (str[c] == '&' && str[c+1] == 'n') {c++; tsz--; if (!__console_silent) console_newline(); if (!__console_silent) __console_icolumn--;}
-		else
-        {
-			if (!__console_silent)
-				__console_buffer[__console_icolumn][__console_irow]= __CONSOLE_CHFMT(str[c]);
-			if (__console_stdout_index < sizeof(__console_stdout))
-			{
-				__console_stdout[__console_stdout_index]= str[c];
-				__console_stdout_index++;
-			}
-		}
-
-		if (!__console_silent) __console_icolumn++;
-		c++;
-		tsz--;
-	}
-}
-
 void console_moveback(int n)
 {
 	while(n)
@@ -461,20 +210,105 @@ void console_moveon(int n)
 	}
 }
 
-void console_redrawrow(int row, char* str)
+void console_newline()
 {
-	int prevrow= __console_irow;
-	int prevcol= __console_icolumn;
-	__console_irow= row;
-	__console_icolumn= 0;
+	__console_irow++;
+	__console_icolumn=0;
 
-	//for (int ix=0; ix<__console_charperw; ix++)
-		//__console_buffer[ix][__console_irow]= 0;
+	if (__console_irow >= __console_charperh)
+    {
+		console_scrolldown();
+		__console_irow= __console_charperh-1;
+	}
+}
 
-	console_printf(str);
+IWRAM_CODE ARM_CODE
+void console_printc(char ch)
+{
+	if (__console_silent)
+		return;
 
-	__console_irow= prevrow;
-	__console_icolumn= prevcol;
+	if (__console_icolumn >= __console_charperw)
+	{
+		__console_icolumn= 0;
+		__console_irow++;
+	}
+
+	if (__console_irow >= __console_charperh)
+	{
+		console_scrolldown();
+		__console_irow= __console_charperh-1;
+	}
+
+	__console_buffer[__console_icolumn][__console_irow]= __CONSOLE_CHFMT(ch);
+
+	if (__console_stdout_index < sizeof(__console_stdout))
+	{
+		__console_stdout[__console_stdout_index]= ch;
+		__console_stdout_index++;
+	}
+
+	__console_icolumn++;
+}
+
+void console_prints(char* str)
+{
+	if (__console_silent)
+		return;
+
+	for (int c=0; str[c] && c<__console_print_maxch; c++)
+		console_printc(str[c]);
+}
+
+void console_printf(char* str, ...)
+{
+	va_list valist;
+	va_start(valist, (int)str[0]);
+
+	char tfmtstr[16];
+	char tescstr[8];
+
+	for (int i=0; str[i] && i<__console_print_maxch; i++)
+    {
+		if (str[i] == '&')
+		{
+			switch(str[i+1])
+			{
+				case '&':
+					console_printc('&');
+					i++;
+					break;
+				case '%':
+					console_printc('%');
+					i++;
+					break;
+				case 'n':
+					console_newline();
+					i++;
+					break;
+				case '\0':
+					console_prints("\\0");
+					break;
+				default:
+					break;
+			}
+		}
+		else if (str[i] == '%')
+		{
+			memcpy(tescstr, &str[i], sizeof(tescstr));
+			int tescstr_len= strspn(tescstr,"0123456789")+1;
+			if (tescstr_len > sizeof(tescstr))
+				tescstr_len= sizeof(tescstr)-1;
+			tescstr[tescstr_len+1]= '\0';
+			snprintf(tfmtstr, sizeof(tfmtstr), tescstr, va_arg(valist,int));
+			console_prints(tfmtstr);
+			i+=tescstr_len;
+		}
+		else
+			console_printc(str[i]);
+	}
+
+	va_end(valist);
 }
 
 #endif

@@ -242,7 +242,7 @@ void elf_runDynamic(Elf32_Ehdr* elf)
 
             if (dbg_elfexec)
             {
-                console_printf("copy 0x%h to 0x%h&n", (u32)elf+read32(&tph->p_offset), (u32)tmi);
+                console_printf("copy %p to %p&n", (u32)elf+read32(&tph->p_offset), (u32)tmi);
                 console_drawbuffer();
             }
             for (u32 ib=0; ib<p_filesz; ib++)
@@ -253,7 +253,7 @@ void elf_runDynamic(Elf32_Ehdr* elf)
 
     if (dbg_elfexec)
     {
-        console_printf("run 0x%h...&n", (u32)new_entry);
+        console_printf("run %p...&n", (u32)new_entry);
         console_drawbuffer();
     }
 
@@ -322,7 +322,7 @@ void elf_runReloc(Elf32_Ehdr* elf)
     {
         if (dbg_elfexec)
         {
-            console_printf(".text.startup -> 0x%h&n", (u32)new_entry);
+            console_printf(".text.startup -> %p&n", (u32)new_entry);
             console_drawbuffer();
         }
 
@@ -333,7 +333,7 @@ void elf_runReloc(Elf32_Ehdr* elf)
         {
             if (dbg_elfexec)
             {
-                console_printf(".text -> 0x%h&n", (u32)new_entry+startupsz);
+                console_printf(".text -> %p&n", (u32)new_entry+startupsz);
                 console_drawbuffer();
             }
 
@@ -345,7 +345,7 @@ void elf_runReloc(Elf32_Ehdr* elf)
     {
         if (dbg_elfexec)
         {
-            console_printf(".text -> 0x%h&n", (u32)new_entry);
+            console_printf(".text -> %p&n", (u32)new_entry);
             console_drawbuffer();
         }
 
@@ -377,7 +377,7 @@ void elf_runReloc(Elf32_Ehdr* elf)
 
             if (dbg_elfexec)
             {
-                console_printf("rel 0x%h -> 0x%h&n", relptr, modptr);
+                console_printf("rel %p -> %p&n", relptr, modptr);
                 console_drawbuffer();
             }
         }
@@ -390,7 +390,7 @@ void elf_runReloc(Elf32_Ehdr* elf)
 
     if (dbg_elfexec)
     {
-        console_printf("run 0x%h...&n", (u32)new_entry);
+        console_printf("run %p...&n", (u32)new_entry);
         console_drawbuffer();
     }
 

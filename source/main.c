@@ -76,7 +76,7 @@ int main()
 	__shell_activeproc= -1;
 
 	console_clear();
-	console_printf("i\xb3 Flash identification: 0x%h&n", fl_getid());
+	console_printf("i\xb3 Flash identification: %p&n", fl_getid());
 	screen_wait_vsync();
 	console_drawbuffer();
 	if (firsttime)
