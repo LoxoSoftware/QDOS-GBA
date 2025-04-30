@@ -35,7 +35,7 @@
 #include "flashfs.h"
 
 #define OS_NAME 		"QDOS"
-#define OS_VERSION 		"0.0.10.1"
+#define OS_VERSION 		"0.0.10.2"
 
 #define ROMFS_DOMAIN    romfs, romfs_sz/sizeof(file_t*)
 
@@ -81,11 +81,11 @@ int main()
 	console_drawbuffer();
 	if (firsttime)
 	{
-		console_printf("&nFlash is not properly formatted,&nuse the \"fmt\" command to initialize it.&n");
+		console_printf("&[93m&nFlash is not properly formatted,&nuse the \"fmt\" command to initialize it.&[39m&n");
 		console_drawbuffer();
 	}
 	console_newline();
-	console_printf("    Welcome to %s version %s&n",OS_NAME,OS_VERSION);
+	console_printf("    &[96mWelcome to %s &[36mversion %s&[0m&n",OS_NAME,OS_VERSION);
 	execute_command("m");
 	console_drawbuffer();
 
