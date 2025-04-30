@@ -205,6 +205,36 @@ void fcmd_fwrite()
     fs_fclose(fd);
 }
 
+void fcmd_ansitest()
+{
+    console_printf("&[34m&[49m          _____          &n\
+         /\\    \\&n\
+        /::\\____\\&n\
+       /:::/    /&n\
+      /:::/    /&n\
+     /:::/    /&n\
+    /:::/____/&n\
+   /::::\\    \\&n\
+  /::::::\\    \\   _____&n\
+ /:::/\\:::\\    \\ /\\    \\&n\
+/:::/  \\:::\\    /::\\____\\&n\
+\\::/    \\:::\\  /:::/    /&n\
+ \\/____/ \\:::\\/:::/    /&n\
+          \\::::::/    /&n\
+           \\::::/    /&n\
+           /:::/    /&n\
+          /:::/    /&n\
+         /:::/    /&n\
+        /:::/    /&n\
+        \\::/    /&n\
+         \\/____/&[H");
+    console_printf("&[s&[H&[16B&[30C&[40m &[41m &[42m &[43m &[44m &[45m &[46m &[47m &[0m&[u");
+    console_printf("&[s&[H&[17B&[30C&[100m &[101m &[102m &[103m &[104m &[105m &[106m &[107m &[0m&[u");
+    console_printf("&[s&[H&[19B&[44m&[K&[96m(c) 2025 Loxo Software&[0m&[u");
+    console_printf("&[s&[H&[41m&[K&[93mANSI test&[0m&[u&n");
+    console_drawbuffer();
+}
+
 ostool_t romtools[]=
 {
     { "cmd", "Show builtin tools", &fcmd_cmdlist },
@@ -214,6 +244,7 @@ ostool_t romtools[]=
     { "fw", "Write data to file", &fcmd_fwrite },
     { "fr", "Read data from file", &fcmd_fread },
     { "fmt", "Format flash", &fcmd_fdisk },
+    { "ansi", "Test ANSI capabilities", &fcmd_ansitest },
 };
 const int romtools_sz= sizeof(romtools)/sizeof(ostool_t);
 
