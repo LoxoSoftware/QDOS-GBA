@@ -33,20 +33,20 @@
 #define __console_print_maxch	2048
 
 #define VGA_BLACK				RGB5(0,0,0)
-#define VGA_DKRED				RGB5(16,0,0)
-#define VGA_DKGREEN				RGB5(0,16,0)
-#define VGA_DKYELLOW			RGB5(16,16,0)
-#define VGA_DKBLUE				RGB5(0,0,16)
-#define VGA_DKMAGENTA			RGB5(16,0,16)
-#define VGA_DKAQUA				RGB5(0,16,16)
+#define VGA_DKRED				RGB5(24,0,0)
+#define VGA_DKGREEN				RGB5(0,24,0)
+#define VGA_DKYELLOW			RGB5(24,24,0)
+#define VGA_DKBLUE				RGB5(0,0,24)
+#define VGA_DKMAGENTA			RGB5(24,0,24)
+#define VGA_DKAQUA				RGB5(0,24,24)
 #define VGA_DKGRAY				RGB5(16,16,16)
 #define VGA_GRAY				RGB5(24,24,24)
-#define VGA_RED					RGB5(31,0,0)
-#define VGA_GREEN				RGB5(0,31,0)
-#define VGA_YELLOW				RGB5(31,31,0)
-#define VGA_BLUE				RGB5(0,0,31)
-#define VGA_MAGENTA				RGB5(31,0,31)
-#define VGA_AQUA				RGB5(0,31,31)
+#define VGA_RED					RGB5(31,8,8)
+#define VGA_GREEN				RGB5(8,31,8)
+#define VGA_YELLOW				RGB5(31,31,8)
+#define VGA_BLUE				RGB5(8,8,31)
+#define VGA_MAGENTA				RGB5(31,8,31)
+#define VGA_AQUA				RGB5(8,31,31)
 #define VGA_WHITE				RGB5(31,31,31)
 #define IVGA_BLACK				0
 #define IVGA_DKRED				1
@@ -67,6 +67,9 @@
 
 #define __CONSOLE_CHFMT(ch)		(ch+((__console_fgcol&0x0F)<<12)+((__console_bgcol&0x0F)<<8))
 
+#define __CONSOLE_BGCOL_DEFAULT	IVGA_BLACK
+#define __CONSOLE_FGCOL_DEFAULT	IVGA_GRAY
+
 const u16 vga_palette[16]=
 {
 	VGA_BLACK, VGA_DKRED, VGA_DKGREEN, VGA_DKYELLOW,
@@ -81,8 +84,10 @@ char __console_stdout[512]; int __console_stdout_index= 0;
 
 int __console_icolumn= 0;
 int __console_irow= 0;
-u8 __console_bgcol= IVGA_BLACK;
-u8 __console_fgcol= IVGA_GRAY;
+int __console_icolumn_saved= 0;
+int __console_irow_saved= 0;
+u8 __console_bgcol= __CONSOLE_BGCOL_DEFAULT;
+u8 __console_fgcol= __CONSOLE_FGCOL_DEFAULT;
 bool __console_silent= false;
 u32 __console_frames= 0;
 bool __console_initialized= false;
@@ -222,6 +227,122 @@ void console_newline()
 	}
 }
 
+int console_ansiiparse(char* str)
+{
+	const int escape_pfx_len= 2;
+
+	//NOTE: str begins from after the prefix ('&[')
+	//Returns length of the escape sequence
+
+	int first_alpha= strspn(str, "0123456789");
+	char* first_alpha_ptr= "\0";
+	if (first_alpha)
+		first_alpha_ptr= &str[first_alpha];
+
+	///// Cursor commands /////
+
+	if (str[0] == 'H')
+	{
+		__console_icolumn= 0;
+		__console_irow= 0;
+		goto __console_ansiparse_finish;
+	}
+	if (str[0] == 'M')
+	{
+		if (__console_irow>0)
+			__console_irow--;
+		goto __console_ansiparse_finish;
+	}
+	if (str[0] == 's')
+	{
+		__console_icolumn_saved= __console_icolumn;
+		__console_irow_saved= __console_irow;
+		goto __console_ansiparse_finish;
+	}
+	if (str[0] == 'u')
+	{
+		__console_icolumn= __console_icolumn_saved;
+		__console_irow= __console_irow_saved;
+		goto __console_ansiparse_finish;
+	}
+	if (*first_alpha_ptr == 'A')
+	{
+		*first_alpha_ptr= '\0';
+		u8 n= strtol(str, NULL, 10);
+		__console_irow-=n;
+		goto __console_ansiparse_finish;
+	}
+	if (*first_alpha_ptr == 'B')
+	{
+		*first_alpha_ptr= '\0';
+		u8 n= strtol(str, NULL, 10);
+		__console_irow+=n;
+		goto __console_ansiparse_finish;
+	}
+	if (*first_alpha_ptr == 'C')
+	{
+		*first_alpha_ptr= '\0';
+		u8 n= strtol(str, NULL, 10);
+		__console_icolumn+=n;
+		goto __console_ansiparse_finish;
+	}
+	if (*first_alpha_ptr == 'D')
+	{
+		*first_alpha_ptr= '\0';
+		u8 n= strtol(str, NULL, 10);
+		__console_icolumn-=n;
+		goto __console_ansiparse_finish;
+	}
+
+	///// Erase commands /////
+
+	if (str[0] == 'K')
+	{
+		for (int ix=0; ix<__console_charperw; ix++)
+			__console_buffer[ix][__console_irow]= __CONSOLE_CHFMT(' ');
+		goto __console_ansiparse_finish;
+	}
+	if (str[0] == '2' && str[1] == 'J')
+	{
+		console_clear();
+		goto __console_ansiparse_finish;
+	}
+
+	///// Color commands /////
+
+	if (*first_alpha_ptr == 'm')
+	{
+		*first_alpha_ptr= '\0';
+		u8 n= strtol(str, NULL, 10);
+
+		if (n == 0)
+			__console_bgcol= __CONSOLE_BGCOL_DEFAULT,
+			__console_fgcol= __CONSOLE_FGCOL_DEFAULT;
+		if (n == 39)
+			__console_fgcol= __CONSOLE_FGCOL_DEFAULT;
+		if (n == 49)
+			__console_bgcol= __CONSOLE_BGCOL_DEFAULT;
+
+		//Dark colors
+		if (n>=30 && n<=37)
+			__console_fgcol= n-30;
+		if (n>=40 && n<=47)
+			__console_bgcol= n-40;
+		//Bright colors
+		if (n>=90 && n<=97)
+			__console_fgcol= n-90+8;
+		if (n>=100 && n<=107)
+			__console_bgcol= n-100+8;
+
+		goto __console_ansiparse_finish;
+	}
+
+	return 0;
+
+__console_ansiparse_finish:
+	return escape_pfx_len+first_alpha;
+}
+
 IWRAM_CODE ARM_CODE
 void console_printc(char ch)
 {
@@ -285,6 +406,9 @@ void console_printf(char* str, ...)
 				case 'n':
 					console_newline();
 					i++;
+					break;
+				case '[':
+					i+= console_ansiiparse(&str[i+2]);
 					break;
 				case '\0':
 					console_prints("\\0");
