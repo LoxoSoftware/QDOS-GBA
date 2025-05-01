@@ -228,8 +228,8 @@ void fcmd_ansitest()
         /:::/    /&n\
         \\::/    /&n\
          \\/____/&[H");
-    console_printf("&[s&[H&[16B&[30C&[40m &[41m &[42m &[43m &[44m &[45m &[46m &[47m &[0m&[u");
-    console_printf("&[s&[H&[17B&[30C&[100m &[101m &[102m &[103m &[104m &[105m &[106m &[107m &[0m&[u");
+    console_printf("&[s&[H&[16B&[22C&[40m  &[41m  &[42m  &[43m  &[44m  &[45m  &[46m  &[47m  &[0m&[u");
+    console_printf("&[s&[H&[17B&[22C&[100m  &[101m  &[102m  &[103m  &[104m  &[105m  &[106m  &[107m  &[0m&[u");
     console_printf("&[s&[H&[19B&[44m&[K&[96m(c) 2025 Loxo Software&[0m&[u");
     console_printf("&[s&[H&[41m&[K&[93mANSI test&[0m&[u&n");
     console_drawbuffer();
