@@ -114,7 +114,27 @@ int main()
 		}
 	}
 
-	console_printf("Out of init thread! Please reboot to retry&n");
+	//Out of main thread? Initiate graceful shutdown
+
+	REG_DISPCNT= MODE_3|BG2_ON|OBJ_ON|OBJ_1D_MAP;
+
+	console_printf("&[0m&[2J&[6B           &[97mShutting down...&n&n");
 	console_drawbuffer();
+	fs_flush();
+
+	//Wait for a bit...
+	//This is not just for fun, but waiting a few seconds ensures that all data
+	// is being saved to the flashcart's SD card in time to avoid corruption
+	for (int i=0; i<120; i++)
+		VBlankIntrWait();
+
+	REG_DISPCNT= MODE_3|BG2_ON;
+
+	console_printf("&[0m&[2J&[6B  &[93mIt's now safe to turn off your GBA.");
+	console_drawbuffer();
+
+	REG_IME= 0; //Turn off all interrupts
+
+	while (1) ;
 }
 

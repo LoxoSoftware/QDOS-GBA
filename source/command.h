@@ -217,7 +217,7 @@ void execute_command(char* cmd)
     else
     if (!strcmp(cmdtok[0],"exit"))
     {
-        __system_mainloop= false;
+        shutdown();
         goto endparse;
     }
     else if (tokc && strcmp(cmdtok[0],""))

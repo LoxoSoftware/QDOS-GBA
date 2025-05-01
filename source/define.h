@@ -52,3 +52,8 @@ u16   __keyboard_txtbgcol= c_aqua;
 #define MBCODE_SIZE (EWRAM_SIZE>>1)     //128k hard limit
 
 #define MALLOCS_MAX    32
+
+void shutdown()
+{
+    __system_mainloop= false;
+}
