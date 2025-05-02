@@ -52,9 +52,9 @@ int main()
 	irqSet(IRQ_DMA0, isr_IRQReceiver);
 	irqEnable(IRQ_DMA0);
 	//Setup hardware interrupt for virtual keyboard
-	REG_KEYCNT= KEY_L | KEY_R | KEYIRQ_ENABLE | KEYIRQ_AND;
-	irqSet(IRQ_KEYPAD, isr_vkeyboard);
-	irqEnable(IRQ_KEYPAD);
+	//REG_KEYCNT= KEY_L | KEY_R | KEYIRQ_ENABLE | KEYIRQ_AND;
+	//irqSet(IRQ_KEYPAD, isr_vkeyboard);
+	//irqEnable(IRQ_KEYPAD);
 
 	console_printf("\xde\xb3 SRAM check...&n");
 	console_drawbuffer();
@@ -89,7 +89,7 @@ int main()
 	execute_command("m");
 	console_drawbuffer();
 
-	u16 kd;
+	u16 kd, kh;
 
 	while(__system_mainloop)
 	{
@@ -102,9 +102,19 @@ int main()
 		screen_wait_vsync();
 		scanKeys();
 		kd= keysDown();
+		kh= keysHeld();
 
-		if (kd&(KEY_L|KEY_R))
-			irqEnable(IRQ_KEYPAD);
+		if ((kh&KEY_L) && (kh&KEY_R))
+		{
+			go_console_keyboard(execute_command);
+
+			while (((kh&KEY_L) && (kh&KEY_R)))
+			{
+				VBlankIntrWait();
+				scanKeys();
+				kh= keysHeld();
+			}
+		}
 
 		if (kd&KEY_START && __shell_activeproc == -1)
 		{

@@ -153,12 +153,13 @@ void go_console_keyboard(void (*fnptr)(char*))
 	redraw();
 	drawin();
 
-    u16 kd;
+    u16 kd, kh;
 
 	while(1)
     {
 		scanKeys();
 		kd= keysDown();
+		kh= keysHeld();
 
         if (kd&KEY_LEFT) selx--;
 		if (selx < 0) selx= COLUMNS-1;
@@ -328,7 +329,7 @@ void go_console_keyboard(void (*fnptr)(char*))
 			redraw();
 		}
 
-		if (kd&(KEY_L|KEY_R))
+		if ((kh&KEY_L) && (kh&KEY_R))
         {
 			console_moveback(inlen);
 

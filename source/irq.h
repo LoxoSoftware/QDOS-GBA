@@ -18,16 +18,16 @@
 //                                                                          //
 //////////////////////////////////////////////////////////////////////////////
 
-bool vk_isr_busy= false;
-
-ARM_CODE void isr_vkeyboard()
-{
-    if (vk_isr_busy) return;
-    vk_isr_busy= true;
-
-    irqDisable(IRQ_KEYPAD);
-    go_console_keyboard(&execute_command);
-
-    vk_isr_busy= false;
-    return;
-}
+// bool vk_isr_busy= false;
+//
+// ARM_CODE void isr_vkeyboard()
+// {
+//     if (vk_isr_busy) return;
+//     vk_isr_busy= true;
+//
+//     irqDisable(IRQ_KEYPAD);
+//     go_console_keyboard(&execute_command);
+//
+//     vk_isr_busy= false;
+//     return;
+// }
