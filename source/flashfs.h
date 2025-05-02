@@ -71,11 +71,10 @@ typedef struct
 //Mode legend:
 //  'r' File open for reading only(+ create)
 //  'w' File open for reading and writing (+ create)
-//  'p' File open for writing only (+ create)
+//  'a' File open for writing in append mode (+ create)
 //  'R' File open for reading only (fail if file doesn't exist)
 //  'W' File open for reading and writing (fail if file doesn't exist)
-//  'P' File open for writing only (fail if file doesn't exist)
-//  Set MSB to use append mode
+//  'A' File open for writing in append mode (fail if file doesn't exist)
 // Anything else is invalid, file is not open
 } fhandle_t;
 
@@ -175,14 +174,16 @@ IWRAM_CODE ARM_CODE void fl_get4k(u8 sector)
 }
 
 void fl_writeDirect(u32 ofs, u8 value);
-IWRAM_CODE ARM_CODE void fl_restore4k()
+IWRAM_CODE ARM_CODE
+void fl_restore4k()
 {
     fl_drop4k(fl_lastsector);
     for (int i=0; i<4096; i++)
         fl_writeDirect(fl_lastsector*0x1000+i, fl_secbuf[i]);
 }
 
-IWRAM_CODE ARM_CODE void fl_writeDirect(u32 ofs, u8 value)
+IWRAM_CODE ARM_CODE
+void fl_writeDirect(u32 ofs, u8 value)
 {
     if (ofs>>16 != fl_prevbank)
         fl_selbank((ofs-SRAM)>>16);
@@ -195,7 +196,8 @@ IWRAM_CODE ARM_CODE void fl_writeDirect(u32 ofs, u8 value)
     while(*(u8*)(SRAM+ofs) != value) ;
 }
 
-IWRAM_CODE ARM_CODE void fl_write8(u8* ptr, u8 value)
+IWRAM_CODE ARM_CODE
+void fl_write8(u8* ptr, u8 value)
 {
     //NOTE: Does not write directly to flash, writes to the buffer
     //      you can access it with SRAM addresses
@@ -224,10 +226,9 @@ IWRAM_CODE ARM_CODE void fl_write8(u8* ptr, u8 value)
     fl_secbuf[ofs&0x0FFF]= value;
 }
 
-IWRAM_CODE ARM_CODE u8 fl_read8(u8* ptr)
+IWRAM_CODE ARM_CODE
+u8 fl_read8(u8* ptr)
 {
-    //TODO: Implement buffer-first reading like in fl_write8
-
     u32 ofs= (u32)ptr-SRAM;
 
     if (ofs < 0 && ofs >= SRAM_MAX)
@@ -235,14 +236,32 @@ IWRAM_CODE ARM_CODE u8 fl_read8(u8* ptr)
 
     if (ofs>>16 != fl_prevbank)
         fl_selbank(ofs>>16);
-    ofs &= 0x0FFF;
 
-    return ((u8*)SRAM)[ofs];
+    if (ofs < 0x1000*fl_lastsector || ofs >= 0x1000*(fl_lastsector+1) || fl_lastsector == 255)
+    {
+        //Requested address is not stored in the buffer, so get the byte directly from flash
+        //Caching a new sector may not probably be worth it for the performance gained
+        return ((u8*)SRAM)[ofs&0xFFFF];
+    }
+    else
+    return fl_secbuf[ofs&0x0FFF];
+}
+
+inline u16 fl_read32(u8* ptr)
+{
+    return fl_read8(ptr)+(fl_read8(ptr+1)<<8)
+           +(fl_read8(ptr+2)<<16)+(fl_read8(ptr+3)<<24);
+}
+
+inline u16 fl_read16(u8* ptr)
+{
+    return fl_read8(ptr)+(fl_read8(ptr+1)<<8);
 }
 
 /// Filesystem implementation ///
 
-IWRAM_CODE ARM_CODE int _strcmp(char* str1, char* str2)
+IWRAM_CODE ARM_CODE
+int _strcmp(char* str1, char* str2)
 {
     if (!str1 || !str2)
         return -1;
@@ -255,7 +274,8 @@ IWRAM_CODE ARM_CODE int _strcmp(char* str1, char* str2)
     }
 }
 
-IWRAM_CODE ARM_CODE int _strncmp(char* str1, char* str2, u16 max)
+IWRAM_CODE ARM_CODE
+int _strncmp(char* str1, char* str2, u16 max)
 {
     if (!str1 || !str2)
         return -1;
@@ -614,7 +634,19 @@ fdesc_t fs_fopen(char* fname, char mode)
 {
     //Returns <0 on error
 
+    char tstr[2]= { mode&0x7F, '\0' };
     file_t* fptr= fs_getfileptr(fname);
+
+    if (!fptr && strpbrk(tstr,"rwa"))
+    {
+        fptr= fs_newfile(fname, 0);
+
+        if (!fptr)
+        {
+            sprintf(fs_error, "OPEN: Cannot create new file \"%s\"", fname);
+            return -5;
+        }
+    }
 
     if (!fptr || !fs_check_fname(fname))
     {
@@ -634,9 +666,7 @@ fdesc_t fs_fopen(char* fname, char mode)
         }
     }
 
-    char tstr[2]= { mode&0x7F, '\0' };
-
-    if (!strpbrk(tstr,"rRwWpP"))
+    if (!strpbrk(tstr,"rRwWaA"))
     {
         sprintf(fs_error, "OPEN: Invalid fopen mode");
         return -2;
@@ -670,7 +700,8 @@ void fs_fclose(fdesc_t fd)
     hdl->file= NULL;
 }
 
-IWRAM_CODE ARM_CODE u8 fs_fread(fdesc_t fd)
+IWRAM_CODE ARM_CODE
+u8 fs_fread(fdesc_t fd)
 {
     //TODO: Fix reliance on continous file access
 
@@ -684,7 +715,7 @@ IWRAM_CODE ARM_CODE u8 fs_fread(fdesc_t fd)
     }
 
     char mode[2]= { hdl->mode&0x7F, '\0' };
-    if (!strpbrk(mode, "rRwW"))
+    if (!strpbrk(mode, "rRwWaA"))
     {
         sprintf(fs_error, "READ: File is not open for reading");
         return 0x00;
@@ -700,7 +731,8 @@ IWRAM_CODE ARM_CODE u8 fs_fread(fdesc_t fd)
     return ((char*)(&hdl->file->data))[hdl->cursor-1];
 }
 
-IWRAM_CODE ARM_CODE void fs_fwrite(fdesc_t fd, u8 ch)
+IWRAM_CODE ARM_CODE
+void fs_fwrite(fdesc_t fd, u8 ch)
 {
     //TODO: Fix reliance on continous file access
     //WARNING: Flush the buffer when done! use fl_flush()
@@ -715,16 +747,23 @@ IWRAM_CODE ARM_CODE void fs_fwrite(fdesc_t fd, u8 ch)
     }
 
     char mode[2]= { hdl->mode&0x7F, '\0' };
-    if (!strpbrk(mode, "wWpP"))
+    if (!strpbrk(mode, "wWaA"))
     {
         sprintf(fs_error, "WRITE: File is not open for writing");
         return;
     }
-    if (hdl->cursor >= read32(&hdl->file->size))
+
+    if (strpbrk(mode, "WA"))
+        if (hdl->cursor >= read32(&hdl->file->size))
+        {
+            hdl->cursor= read32(&hdl->file->size);
+            sprintf(fs_error, "WRITE: EOF reached");
+            return;
+        }
+
+    if (strpbrk(mode, "wa"))
     {
-        hdl->cursor= read32(&hdl->file->size);
-        sprintf(fs_error, "WRITE: EOF reached");
-        return;
+        //Append handling
     }
 
     if (fl_lastsector != FL_SECTOR((u8*)(&hdl->file->data)))
