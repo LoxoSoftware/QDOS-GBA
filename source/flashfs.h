@@ -44,6 +44,8 @@
 
 #define FS_MAX_FHANDLES 16
 
+#define FL_AUTOSAVE_FAT true   //If set to false, use the "exit" command to save the FAT
+
 u32 sram_size= SRAM_MAX;
 
 typedef struct
@@ -258,7 +260,7 @@ inline u16 fl_read16(u8* ptr)
     return fl_read8(ptr)+(fl_read8(ptr+1)<<8);
 }
 
-/// Filesystem implementation ///
+/// Helper functions ///
 
 IWRAM_CODE ARM_CODE
 int _strcmp(char* str1, char* str2)
@@ -288,6 +290,32 @@ int _strncmp(char* str1, char* str2, u16 max)
     }
     return 0;
 }
+
+IWRAM_CODE ARM_CODE
+int _strncmp_flsrc(char* flstr, char* srcstr, u16 max)
+{
+    //Compare between a string in flash and a string not in flash
+    // comparing with fl_secbuf if necessary
+    //You could use the normal _strncmp but you should use this for
+    // reliability and predictability if comparing from something in flash
+    //  flstr is a string IN flash
+    //  srcstr is a string NOT IN flash
+
+    if (!flstr || !srcstr)
+        return -1;
+    for (int i=0; i<max; i++)
+    {
+        u8 a= fl_read8((u8*)(flstr+i)), b= *(u8*)(srcstr+i);
+
+        if (a != b)
+            return i+1;
+        if (!a && !b)
+            return 0;
+    }
+    return 0;
+}
+
+/// Filesystem implementation ///
 
 u8 fs_in_domain(void* ptr)
 {
@@ -362,6 +390,8 @@ void fs_init()
     memset(fl_secbuf, 0xFF, 4096);
     memset((u8*)fs_secmap, 0xFF, sizeof(fs_secmap));
     memset(&((*fs_handles)->mode), '\0', sizeof(fhandle_t));
+
+    //fs_loadFlash();
 }
 
 void fs_saveFlash()
@@ -377,7 +407,7 @@ void fs_loadFlash()
 {
     memset((u8*)fs_secmap, 0xFF, sizeof(fs_secmap));
     for (int i=0; i<MAXALLOCS; i++)
-        fs_secmap[i]= read16((u8*)((u32)&fs_root->secmap+i*sizeof(u16)));
+        fs_secmap[i]= fl_read16((u8*)((u32)&fs_root->secmap+i*sizeof(u16)));
 }
 
 void fs_format()
@@ -466,7 +496,7 @@ file_t* fs_getfileptr(char* fname)
 
     for (int f=0; f<MAXALLOCS; f++)
     {
-        if (!(read16(&fs_root->secmap[f])&0x8000) || (read16(&fs_root->secmap[f])==0xFFFF))
+        if (!(fs_secmap[f]&0x8000) || (fs_secmap[f]==0xFFFF))
             continue;
 
         file_t* fptr= (file_t*)((u32)fs_root+(FS_SECTOR_SZ*(f+1)));
@@ -475,15 +505,15 @@ file_t* fs_getfileptr(char* fname)
         {
             if (fptr->type[0]=='\0' || fptr->type[0]==0xFF)
                 continue;
-            if (!_strncmp(fptr->name, fname, (u32)dot-(u32)fname))
-                if (!_strncmp(fptr->type, dot+1, FS_FTYPE_SZ))
+            if (!_strncmp_flsrc(fptr->name, fname, (u32)dot-(u32)fname))
+                if (!_strncmp_flsrc(fptr->type, dot+1, FS_FTYPE_SZ))
                     return fptr;
         }
         else
         {
             if (fptr->type[0]!='\0' && fptr->type[0]!=0xFF)
                 continue;
-            if (!_strncmp(fptr->name, fname, FS_FNAME_SZ))
+            if (!_strncmp_flsrc(fptr->name, fname, FS_FNAME_SZ))
                 return fptr;
         }
     }
@@ -497,12 +527,12 @@ file_t* fs_getfileptr_trunc(char* fname)
 
     for (int f=0; f<MAXALLOCS; f++)
     {
-        if (!(read16(&fs_root->secmap[f])&0x8000) || (read16(&fs_root->secmap[f])==0xFFFF))
+        if (!(fs_secmap[f]&0x8000) || (fs_secmap[f]==0xFFFF))
             continue;
 
         file_t* fptr= (file_t*)((u32)fs_root+(FS_SECTOR_SZ*(f+1)));
 
-        if (!_strncmp(fptr->name, fname, FS_FNAME_SZ))
+        if (!_strncmp_flsrc(fptr->name, fname, FS_FNAME_SZ))
             return fptr;
     }
 
@@ -562,7 +592,8 @@ fhandle_t* fd_get_handle(fdesc_t fd)
 
 file_t* fs_newfile(char* fname, u32 fsize)
 {
-    fs_loadFlash();
+    if (FL_AUTOSAVE_FAT)
+        fs_loadFlash();
 
     if (!fs_check_fname(fname)) return NULL;
 
@@ -572,7 +603,9 @@ file_t* fs_newfile(char* fname, u32 fsize)
 
     fs_secmap[fid] += 0x8000; //Set MSB to indicate that the block is a file
 
-    fs_saveFlash();
+    if (FL_AUTOSAVE_FAT)
+        fs_saveFlash();
+
     //Write file header
     fl_erase4k(FL_SECTOR(fptr));
     file_t* fptr_buf= (file_t*)(fl_secbuf+FL_BUFIND(fptr));
@@ -610,7 +643,8 @@ bool fs_rmfile(char* fname)
 {
     //Returns false on error
 
-    fs_loadFlash(); //Sync temporary secmap to flash contents
+    if (FL_AUTOSAVE_FAT)
+        fs_loadFlash(); //Sync temporary secmap to flash contents
 
     if (!fs_check_fname(fname))
         return false;
@@ -625,7 +659,8 @@ bool fs_rmfile(char* fname)
     if (fs_dealloc(FS_PTRBLOCKID(file))<0)
         return false;
 
-    fs_saveFlash(); //Flush changes to flash
+    if (FL_AUTOSAVE_FAT)
+        fs_saveFlash(); //Flush changes to flash
 
     return true;
 }

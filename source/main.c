@@ -131,6 +131,7 @@ int main()
 	console_printf("&[0m&[2J&[6B           &[97mShutting down...&n&n");
 	console_drawbuffer();
 	fs_flush();
+	fs_saveFlash();
 
 	//Wait for a bit...
 	//This is not just for fun, but waiting a few seconds ensures that all data
