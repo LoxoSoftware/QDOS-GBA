@@ -145,7 +145,7 @@ void fcmd_fread()
         return;
     }
 
-    fdesc_t fd= fs_fopen(ARGV(1), 'r');
+    fdesc_t fd= fs_fopen(ARGV(1), 'R');
 
     if (fd<0)
     {
@@ -186,7 +186,7 @@ void fcmd_fwrite()
         return;
     }
 
-    fdesc_t fd= fs_fopen(ARGV(1), 'p');
+    fdesc_t fd= fs_fopen(ARGV(1), 'w');
 
     if (fd<0)
     {
