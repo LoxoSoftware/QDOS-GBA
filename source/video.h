@@ -89,7 +89,7 @@ u16 draw_getpixel(int x, int y)
 IWRAM_CODE ARM_CODE
 void draw_clear(u16 col)
 {
-    for(int i=0; i < SCREEN_WIDTH*SCREEN_HEIGHT; i+= 2)
+    for(int i=0; i < SCREEN_WIDTH*SCREEN_HEIGHT; i++)
         ((u16*)VRAM)[i]= col;
 }
 
