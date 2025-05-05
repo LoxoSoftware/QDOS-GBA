@@ -23,6 +23,7 @@
 
 #include "flashfs.h"
 #include "console.h"
+#include "syscall.h"
 
 void os_exec(file_t* file)
 {
@@ -55,21 +56,54 @@ void os_exec(file_t* file)
                 console_printf("Invalid architecture&n");
                 return;
             case EXE_WRONGMAGIC:
-                console_printf("Invalid ELF format: wrong magic&n");
+                console_printf("Not a valid ELF file&n");
                 return;
             case EXE_UNSUPPORTED:
                 console_printf("Unsupported exec. format&n");
                 return;
-            case EXE_RELOC:
-                elf_runReloc(exeptr);
-                return;
             case EXE_STATIC:
-                elf_runDynamic(exeptr);
+                elf_runExecutable(exeptr);
                 break;
             default:
                 console_printf("Invalid exec. format&n");
                 return;
         }
+    }
+}
+
+void __exe_weighArgs(int* argc, int* argsz)
+{
+    *argsz= 0;
+
+    for (int i=0; i<CMD_TOKEN_MAX; i++)
+    {
+        if (!ARGV(i)[0]) break;
+        *argsz+= strlen(ARGV(i))+1;
+        *argc+= 1;
+    }
+
+    *argsz= *argsz + (*argsz&3);
+}
+
+ARM_CODE
+void __exe_copyArgs(char* strptr, char** argv)
+{
+    //Copies all argument strings to an allocated string pointer and builds the argv
+    //  WARNING: The pointer must already point to an unused location before
+    //           or after the program data
+
+    u32 mi= 0;
+    //argv= (char**)((u32)argv-(((u32)argv)%4));
+
+    for (int i=0; i<CMD_TOKEN_MAX; i++)
+    {
+        u16 targsz= strlen(ARGV(0))>CMD_TOKEN_SIZE? CMD_TOKEN_SIZE : strlen(ARGV(i))+1;
+        if (!ARGV(i)[0]) break;
+        write32(&argv[i], (u32)strptr+mi);
+        for (int ch=0; ch<targsz; ch++)
+            *(char*)(strptr+mi+ch)= ARGV(i)[ch];
+        *(char*)(strptr+mi+targsz)= '\0';
+        mi+= targsz;
     }
 }
 

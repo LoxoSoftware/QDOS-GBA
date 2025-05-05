@@ -30,7 +30,7 @@
 #include "command.h"
 #include "keyboard.h"
 #include "irq.h"
-#include "syscall.h"
+//#include "syscall.h"
 #include "tools.h"
 #include "flashfs.h"
 

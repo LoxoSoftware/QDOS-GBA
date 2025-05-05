@@ -23,14 +23,15 @@
 #include <elf.h>
 #include "flashfs.h"
 
+void    __exe_weighArgs(int*, int*);
+void    __exe_copyArgs(char*, char**);
+
 typedef enum {
     EXE_INVALIDARCH = -3,
     EXE_WRONGMAGIC  = -2,
     EXE_UNSUPPORTED = -1,
     EXE_INVALID     = 0,
-    EXE_RELOC       = 1,
-    EXE_DYNAMIC     = 2,
-    EXE_STATIC      = 3,
+    EXE_STATIC      = 1,
 } exe_t;
 
 bool dbg_elfexec= false;
@@ -48,15 +49,12 @@ exe_t elf_check(Elf32_Ehdr* exeptr)
 
     switch (read16(&exeptr->e_type))
     {
-        case ET_CORE:
-            return EXE_UNSUPPORTED;
         case ET_EXEC:
             return EXE_STATIC;
         case ET_DYN:
-            ttype= EXE_UNSUPPORTED;
-            break;
+        case ET_CORE:
         case ET_REL:
-            ttype= EXE_RELOC;
+            ttype= EXE_UNSUPPORTED;
             break;
         default:
             return EXE_INVALID;
@@ -176,9 +174,12 @@ Elf32_Shdr* elf_getSectionByInd(Elf32_Ehdr* elf, u16 index)
     return (Elf32_Shdr*)((u32)elf+read32(&elf->e_shoff)+secsz*index);
 }
 
-void elf_runDynamic(Elf32_Ehdr* elf)
+void elf_runExecutable(Elf32_Ehdr* elf)
 {
-    void (*new_entry)(void);
+    //Temporarely disable interrupts to avoid race conditions with other programs
+    REG_IME= 0;
+
+    void (*new_entry)(int,char**);
 
     Elf32_Phdr* pheaders= (Elf32_Phdr*)((u32)elf+read32(&elf->e_phoff));
     u16 nheaders= read16(&elf->e_phnum);
@@ -207,7 +208,6 @@ void elf_runDynamic(Elf32_Ehdr* elf)
             codesz+= read32(&tph->p_filesz);
             allocsz+= read32(&tph->p_memsz);
         }
-
     }
 
     if (!ph_code || !codesz || !allocsz)
@@ -217,12 +217,19 @@ void elf_runDynamic(Elf32_Ehdr* elf)
         return;
     }
 
+    int new_argc= 0, argsz= 0;
+    __exe_weighArgs(&new_argc, &argsz);
+    allocsz+= argsz+new_argc*sizeof(char*);
+
     if (dbg_elfexec)
     {
         console_printf("Allocating %d bytes&n", allocsz);
+        console_printf("            \\_ %dB : Memory image&n", codesz);
+        console_printf("            \\_ %dB : All arguments&n", argsz);
+        console_printf("            \\_ %dB : New argv&n", new_argc*sizeof(char*));
         console_drawbuffer();
     }
-    new_entry= malloc(allocsz);
+    new_entry= malloc(allocsz+16);
     if (!new_entry)
     {
         console_printf("EXE: ERR! Memory allocation failed&n");
@@ -251,150 +258,21 @@ void elf_runDynamic(Elf32_Ehdr* elf)
         }
     }
 
+    char* new_argstring= (char*)tmi;
+    char** new_argv= (char**)(new_argstring+argsz+1);
+    new_argv= (char**)((u32)new_argv+((u32)new_argv&3)); //Align new argv to 32 bit
+
+    __exe_copyArgs(new_argstring, new_argv);
+
     if (dbg_elfexec)
     {
+        console_printf("new argv is at %p&n", (u32)new_argv);
         console_printf("run %p...&n", (u32)new_entry);
         console_drawbuffer();
     }
 
-    (*new_entry)();
-
-    free(new_entry);
-}
-
-void elf_runReloc(Elf32_Ehdr* elf)
-{
-    Elf32_Shdr* sec_text_startup= elf_getSectionByInd(elf, elf_getSectionIndByName(elf, ".text.startup"));
-    Elf32_Shdr* sec_text= elf_getSectionByInd(elf, elf_getSectionIndByName(elf, ".text"));
-    Elf32_Shdr* sec_rel_text_startup= elf_getSectionByInd(elf, elf_getSectionIndByName(elf, ".rel.text.startup"));
-    //Elf32_Shdr* sec_rel_text= elf_getSectionByInd(elf, elf_getSectionIndByName(elf, ".rel.text"));
-    Elf32_Shdr* sec_symtab= elf_getSectionByInd(elf, elf_getSectionIndByName(elf, ".symtab"));
-
-    void (*new_entry)(void);
-    u32 totalsz= 0;
-    u32 startupsz= 0;
-    u32 textsz= 0;
-
-    //Count total code size to allocate after
-    if (!sec_text && !sec_text_startup)
-    {
-        console_printf("EXE: ERR! No executable code found.&n");
-        console_drawbuffer();
-        return;
-    }
-    if (sec_text_startup)
-    {
-        totalsz += read32(&sec_text_startup->sh_size);
-        startupsz = read32(&sec_text_startup->sh_size);
-    }
-    else
-    {
-        console_printf("EXE: WARN: Init code not found, this may not work!&n");
-        console_drawbuffer();
-    }
-    if (sec_text)
-    {
-        totalsz += read32(&sec_text->sh_size);
-        textsz = read32(&sec_text->sh_size);
-    }
-    else
-    {
-        console_printf("EXE: WARN: Main code not found, ignoring.&n");
-        console_drawbuffer();
-    }
-
-    //Allocate space for code
-    if (dbg_elfexec)
-    {
-        console_printf("Allocating %d bytes&n", totalsz);
-        console_drawbuffer();
-    }
-    new_entry= malloc(totalsz);
-    if (!new_entry)
-    {
-        console_printf("EXE: ERR! Memory allocation failed&n");
-        console_drawbuffer();
-        return;
-    }
-
-    //Copy code
-    if (sec_text_startup)
-    {
-        if (dbg_elfexec)
-        {
-            console_printf(".text.startup -> %p&n", (u32)new_entry);
-            console_drawbuffer();
-        }
-
-        for (int i=0; i<startupsz; i++)
-            *((u8*)new_entry+i)= *(u8*)((u32)elf+read32(&sec_text_startup->sh_offset)+i);
-
-        if (sec_text)
-        {
-            if (dbg_elfexec)
-            {
-                console_printf(".text -> %p&n", (u32)new_entry+startupsz);
-                console_drawbuffer();
-            }
-
-            for (int i=0; i<textsz; i++)
-                *((u8*)new_entry+startupsz+i)= *(u8*)((u32)elf+read32(&sec_text->sh_offset)+i);
-        }
-    }
-    else if (sec_text)
-    {
-        if (dbg_elfexec)
-        {
-            console_printf(".text -> %p&n", (u32)new_entry);
-            console_drawbuffer();
-        }
-
-        for (int i=0; i<textsz; i++)
-            *((u8*)new_entry+i)= *(u8*)((u32)elf+read32(&sec_text->sh_offset)+i);
-    }
-
-    //Relocate
-    if (sec_rel_text_startup)
-    {
-        u16 rels= read32(&sec_rel_text_startup->sh_size)/sizeof(Elf32_Rel);
-
-        for (int ir=0; ir<rels; ir++)
-        {
-            Elf32_Rel* relptr= (Elf32_Rel*)((u32)elf+read32(&sec_rel_text_startup->sh_offset)+ir*sizeof(Elf32_Rel));
-            u32* modptr= (u32*)((u32)new_entry+read32(&relptr->r_offset));
-            Elf32_Sym* symptr= (Elf32_Sym*)((u32)elf+read32(&sec_symtab->sh_offset)+ELF32_R_SYM(read32(&relptr->r_info))*sizeof(Elf32_Sym));
-
-            switch (ELF32_R_TYPE(relptr->r_info))
-            {
-                case R_ARM_CALL:
-                    *modptr= 0xEB000000+(startupsz-((u32)modptr-(u32)new_entry)+read32(&symptr->st_value))/4-2;
-                    break;
-                case R_ARM_REL32:
-                    break;
-                default:
-                    continue;
-            }
-
-            if (dbg_elfexec)
-            {
-                console_printf("rel %p -> %p&n", relptr, modptr);
-                console_drawbuffer();
-            }
-        }
-    }
-    else
-    {
-        console_printf("EXE: WARN: Main relocation table not found, this may not work!");
-        console_drawbuffer();
-    }
-
-    if (dbg_elfexec)
-    {
-        console_printf("run %p...&n", (u32)new_entry);
-        console_drawbuffer();
-    }
-
-    (*new_entry)();
+    REG_IME= 1;
+    (*new_entry)(new_argc, new_argv);
 
     free(new_entry);
 }
