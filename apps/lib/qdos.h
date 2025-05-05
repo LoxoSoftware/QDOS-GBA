@@ -5,11 +5,7 @@
 
 #include <gba.h>
 
-int main();
-int _start()
-{
-    return main();
-}
+int _start();
 
 #define FS_FNAME_SZ     12
 #define FS_FTYPE_SZ     4
