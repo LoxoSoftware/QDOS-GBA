@@ -27,13 +27,12 @@
 #include "video.h"
 #include "console.h"
 #include "mallocw.h"
+#include "io.h"
 #include "command.h"
 #include "keyboard.h"
 #include "irq.h"
 //#include "syscall.h"
 #include "tools.h"
-#include "ioop.h"
-
 #define OS_NAME 		"QDOS"
 #define OS_VERSION 		"0.0.11.0"
 

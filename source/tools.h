@@ -24,7 +24,6 @@
 #include "console.h"
 #include "keyboard.h"
 #include "command.h"
-#include "flashfs.h"
 
 void main_checkerr(int);
 

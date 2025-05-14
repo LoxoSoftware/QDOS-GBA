@@ -21,7 +21,6 @@
 #ifndef BINEXEC_H
 #define BINEXEC_H
 
-#include "flashfs.h"
 #include "console.h"
 #include "syscall.h"
 

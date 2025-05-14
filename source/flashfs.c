@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////////
 //                                                                          //
-// QDOS/flashfs.h   Filesystem implementation and FLASH driver              //
+// QDOS/flashfs.c   Filesystem implementation and FLASH driver              //
 // Copyright (C) 2024-2025  Lorenzo C. (aka LoxoSoftware)                   //
 //                                                                          //
 //   This program is free software: you can redistribute it and/or modify   //
@@ -18,94 +18,18 @@
 //                                                                          //
 //////////////////////////////////////////////////////////////////////////////
 
-#ifndef FLASHFS_H
-#define FLASHFS_H
+#include "io.h"
 
-//TODO: Implement flash bank switching
+u32         sram_size= SRAM_MAX;
+u8          fl_prevbank= 255;
+u8          fl_lastsector= 255;
+u8          fl_secbuf[4096];
 
-//NOTE: This will only allocate in SRAM, use standard allocator functions
-//      to allocate in WRAM
-
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
-
-#define SRAM_MAX        0x00020000  //128k
-#define FILE_MAX_SECTS  128         //Maximum file size is limited to 128 KiB
-#define FS_SECTOR_SZ    1024
-#define FS_ROOTHEAD_SZ  24
-#define FS_INIT_SEQ     0x694200A5
-#define FS_FILEHEAD_SZ  24
-#define MAXALLOCS       ((FS_SECTOR_SZ-FS_ROOTHEAD_SZ)>>1)
-#define MAXFILECHUNK    (FS_SECTOR_SZ-FS_FILEHEAD_SZ)
-
-#define FS_FNAME_SZ     12
-#define FS_FTYPE_SZ     4
-
-#define FS_MAX_FHANDLES 16
-
-#define FL_AUTOSAVE_FAT true   //If set to false, use the "exit" command to save the FAT
-
-u32 sram_size= SRAM_MAX;
-
-typedef struct
-{
-    u32 init_sequence;
-    u8  reserved[FS_ROOTHEAD_SZ-sizeof(u32)];
-    u16 secmap[MAXALLOCS];
-    //NOTE: MSB of secmap[x] is set if the sector is formatted as a file
-} fsroot_t;
-
-typedef struct
-{
-    char type[FS_FTYPE_SZ];
-    char name[FS_FNAME_SZ];
-    u32  size;
-    u32  attr;
-    u8*  data;
-} file_t;
-
-typedef struct
-{
-    file_t* file;
-    u32     cursor;
-    char    mode;
-//Mode legend:
-//  'r' File open for reading only(+ create)
-//  'w' File open for reading and writing (+ create)
-//  'a' File open for writing in append mode (+ create)
-//  'R' File open for reading only (fail if file doesn't exist)
-//  'W' File open for reading and writing (fail if file doesn't exist)
-//  'A' File open for writing in append mode (fail if file doesn't exist)
-// Anything else is invalid, file is not open
-} fhandle_t;
-
-typedef     s16 fdesc_t;
-fhandle_t*  fs_handles[FS_MAX_FHANDLES];
-
-u16         fs_secmap[MAXALLOCS];   //Buffer copy in IWRAM
+u16         fs_secmap[MAXALLOCS];
 fsroot_t*   fs_root= (fsroot_t*)SRAM;
 
-char fs_error[128];
-
-fhandle_t* fd_get_handle(fdesc_t);
-fdesc_t fs_fopen(char*, char);
-void fs_fclose(fdesc_t);
-u8 fs_fread(fdesc_t);
-void fs_fwrite(fdesc_t, u8);
-void fs_fseek(fdesc_t, u32);
-u32 fs_ftell(fdesc_t);
-
-/// Flash driving ///
-
-#define FL_SECTOR(addr)         (((u32)addr-SRAM)>>12)    //Get sector from address
-#define FL_BUFIND(addr)         (((u32)addr-SRAM)&0x0FFF) //Get buffer index from address
-#define FS_PTRBLOCKID(ptr)      (((u32)ptr-(u32)fs_root)/FS_SECTOR_SZ-1) //Get fs sector index from file address
-#define STRUCT_ARR(arr, index, type) ((type*)((u32)&arr+index*sizeof(type*)))   //I hate this
-
-u8 fl_prevbank= 255;    //Last used FLASH bank
-u8 fl_lastsector= 255;  //Last cached FLASH sector
-u8 fl_secbuf[4096];     //Sector cache
+fhandle_t*  fs_handles[FS_MAX_FHANDLES];
+char        fs_error[128];
 
 inline void mdelay(int delay)
 {
@@ -183,7 +107,6 @@ IWRAM_CODE ARM_CODE void fl_get4k(u8 sector)
     fl_lastsector= sector;
 }
 
-void fl_writeDirect(u32 ofs, u8 value);
 IWRAM_CODE ARM_CODE
 void fl_restore4k()
 {
@@ -257,7 +180,7 @@ u8 fl_read8(u8* ptr)
     return fl_secbuf[ofs&0x0FFF];
 }
 
-inline u16 fl_read32(u8* ptr)
+inline u32 fl_read32(u8* ptr)
 {
     return fl_read8(ptr)+(fl_read8(ptr+1)<<8)
            +(fl_read8(ptr+2)<<16)+(fl_read8(ptr+3)<<24);
@@ -266,6 +189,58 @@ inline u16 fl_read32(u8* ptr)
 inline u16 fl_read16(u8* ptr)
 {
     return fl_read8(ptr)+(fl_read8(ptr+1)<<8);
+}
+
+u32 read32(void* ptr)
+{
+    u32 result= 0;
+    result+= *(u8*)(ptr+3) << 24;
+    result+= *(u8*)(ptr+2) << 16;
+    result+= *(u8*)(ptr+1) << 8;
+    result+= *(u8*)(ptr+0);
+    return result;
+}
+
+void write32(void* ptr, u32 value)
+{
+    if (fs_in_domain(ptr))
+    {
+        //fl_erase4k(GETSEC(ptr));
+        fl_write8(ptr+0, value);
+        fl_write8(ptr+1, value >> 8);
+        fl_write8(ptr+2, value >> 16);
+        fl_write8(ptr+3, value >> 24);
+        //fl_restore4k();
+    }
+    else
+    {
+        *(u8*)(ptr+0) = value;
+        *(u8*)(ptr+1) = value >> 8;
+        *(u8*)(ptr+2) = value >> 16;
+        *(u8*)(ptr+3) = value >> 24;
+    }
+}
+
+u16 read16(void* ptr)
+{
+    u16 result= 0;
+    result+= *(u8*)(ptr+1) << 8;
+    result+= *(u8*)(ptr+0);
+    return result;
+}
+
+void write16(void* ptr, u16 value)
+{
+    if (fs_in_domain(ptr))
+    {
+        fl_write8(ptr+0, value);
+        fl_write8(ptr+1, value >> 8);
+    }
+    else
+    {
+        *(u8*)(ptr+0) = value;
+        *(u8*)(ptr+1) = value >> 8;
+    }
 }
 
 /// Helper functions ///
@@ -336,58 +311,6 @@ int fs_first_slot()
         if (fs_secmap[i] == 0xFFFF)
             return i;
     return -1;
-}
-
-u32 read32(void* ptr)
-{
-    u32 result= 0;
-    result+= *(u8*)(ptr+3) << 24;
-    result+= *(u8*)(ptr+2) << 16;
-    result+= *(u8*)(ptr+1) << 8;
-    result+= *(u8*)(ptr+0);
-    return result;
-}
-
-void write32(void* ptr, u32 value)
-{
-    if (fs_in_domain(ptr))
-    {
-        //fl_erase4k(GETSEC(ptr));
-        fl_write8(ptr+0, value);
-        fl_write8(ptr+1, value >> 8);
-        fl_write8(ptr+2, value >> 16);
-        fl_write8(ptr+3, value >> 24);
-        //fl_restore4k();
-    }
-    else
-    {
-        *(u8*)(ptr+0) = value;
-        *(u8*)(ptr+1) = value >> 8;
-        *(u8*)(ptr+2) = value >> 16;
-        *(u8*)(ptr+3) = value >> 24;
-    }
-}
-
-u16 read16(void* ptr)
-{
-    u16 result= 0;
-    result+= *(u8*)(ptr+1) << 8;
-    result+= *(u8*)(ptr+0);
-    return result;
-}
-
-void write16(void* ptr, u16 value)
-{
-    if (fs_in_domain(ptr))
-    {
-        fl_write8(ptr+0, value);
-        fl_write8(ptr+1, value >> 8);
-    }
-    else
-    {
-        *(u8*)(ptr+0) = value;
-        *(u8*)(ptr+1) = value >> 8;
-    }
 }
 
 void fs_init()
@@ -694,5 +617,3 @@ u8 fs_check()
     //Returns false if filesystem is invalid
     return (read32(&fs_root->init_sequence) == FS_INIT_SEQ);
 }
-
-#endif

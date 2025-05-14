@@ -21,7 +21,6 @@
 #define ELFLIB_H
 
 #include <elf.h>
-#include "flashfs.h"
 
 void    __exe_weighArgs(int*, int*);
 void    __exe_copyArgs(char*, char**);
