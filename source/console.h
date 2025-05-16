@@ -407,6 +407,10 @@ void console_printf(char* str, ...)
 					console_newline();
 					i++;
 					break;
+				case 'r':
+					console_drawbuffer();
+					i++;
+					break;
 				case '[':
 					i+= console_ansiiparse(&str[i+2]);
 					break;
