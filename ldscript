@@ -1,0 +1,7 @@
+SECTIONS
+{
+  .oscall 0x03007FE0 :
+  {
+    KEEP(*(.oscall))
+  }
+}

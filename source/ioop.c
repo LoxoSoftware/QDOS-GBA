@@ -20,6 +20,10 @@
 
 #include "io.h"
 
+//Special system files
+file_t* sys_stdout= NULL;
+file_t* sys_stdin= NULL;
+
 fhandle_t* fd_get_handle(fdesc_t fd)
 {
     if (fd>FS_MAX_FHANDLES || fd<0)
@@ -31,16 +35,59 @@ fhandle_t* fd_get_handle(fdesc_t fd)
     return STRUCT_ARR(fs_handles,fd,fhandle_t);
 }
 
+file_t* __open_sysfile(char* fname, char mode)
+{
+    char* dot= strrchr(fname,'.');
+
+    if (!dot || strcmp(dot, ".!sys"))
+        return NULL;
+
+    //Cannot create files if mode doesn't allow to do so
+    if (strchr("RWA", mode))
+        return NULL;
+
+    //Create file in EWRAM
+    file_t* fptr= (file_t*)malloc(FS_ALLOC_DEFAULT);
+    if (!fptr)
+        return NULL;
+
+    int name_len= (u32)dot-(u32)fname;
+    int type_len= strlen(dot)-1;
+
+    //Get file extension and copy it + the name
+    *(char*)((u32)&fptr->type+type_len)= '\0';
+    for (int i = 0; i < type_len; i++)
+        *(char*)((u32)&fptr->type+i)= *(dot+i+1);
+
+    *(char*)((u32)&fptr->name+name_len)= '\0';
+    strncpy((char*)fptr->name, fname, name_len);
+
+    fptr->size= FS_ALLOC_DEFAULT-FS_FILEHEAD_SZ;
+    fptr->attr= 0x55555555;
+
+    if (!strcmp(fname, "stdout.!sys"))
+        sys_stdout= fptr;
+    if (!strcmp(fname, "stdin.!sys"))
+        sys_stdin= fptr;
+
+    return fptr;
+}
+
 fdesc_t fs_fopen(char* fname, char mode)
 {
     //Returns <0 on error
 
-    char tstr[2]= { mode&0x7F, '\0' };
-    file_t* fptr= fs_getfileptr(fname);
+    file_t* fptr= __open_sysfile(fname, mode);
 
-    if (!fptr && strpbrk(tstr,"rwa"))
+    //Handle special system files
+    if (fptr)
+        goto skip_fname_checks;
+
+    fptr= fs_getfileptr(fname);
+
+    if (!fptr && strchr("rwa", mode))
     {
-        fptr= fs_newfile(fname, 0);
+        fptr= fs_newfile(fname, FS_ALLOC_DEFAULT-FS_FILEHEAD_SZ);
 
         if (!fptr)
         {
@@ -55,6 +102,8 @@ fdesc_t fs_fopen(char* fname, char mode)
         return -1;
     }
 
+skip_fname_checks:
+
     for (fdesc_t ifd=0; ifd<FS_MAX_FHANDLES; ifd++)
     {
         if (!fs_handles[ifd]->mode)
@@ -67,7 +116,7 @@ fdesc_t fs_fopen(char* fname, char mode)
         }
     }
 
-    if (!strpbrk(tstr,"rRwWaA"))
+    if (!strchr("rRwWaA", mode))
     {
         sprintf(fs_error, "OPEN: Invalid fopen mode");
         return -2;
@@ -97,6 +146,19 @@ void fs_fclose(fdesc_t fd)
     fhandle_t* hdl= fd_get_handle(fd);
     if (!hdl) return;
 
+    if (hdl->file->attr == 0x55555555)
+    {
+        //Deallocate system file
+        //  WARNING: Subject to change in the future
+
+        if (_strncmp(hdl->file->name, "stdout", FS_FNAME_SZ))
+            sys_stdout= NULL;
+        if (_strncmp(hdl->file->name, "stdin", FS_FNAME_SZ))
+            sys_stdin= NULL;
+
+        free(hdl->file);
+    }
+
     hdl->mode= '\0';
     hdl->file= NULL;
 }
@@ -115,8 +177,7 @@ u8 fs_fread(fdesc_t fd)
         return 0x69;
     }
 
-    char mode[2]= { hdl->mode&0x7F, '\0' };
-    if (!strpbrk(mode, "rRwWaA"))
+    if (!strchr("rRwWaA", hdl->mode))
     {
         sprintf(fs_error, "READ: File is not open for reading");
         return 0x00;
@@ -147,14 +208,13 @@ void fs_fwrite(fdesc_t fd, u8 ch)
         return;
     }
 
-    char mode[2]= { hdl->mode&0x7F, '\0' };
-    if (!strpbrk(mode, "wWaA"))
+    if (!strchr("wWaA", hdl->mode))
     {
         sprintf(fs_error, "WRITE: File is not open for writing");
         return;
     }
 
-    if (strpbrk(mode, "WA"))
+    if (strchr("WA", hdl->mode))
         if (hdl->cursor >= read32(&hdl->file->size))
         {
             hdl->cursor= read32(&hdl->file->size);
@@ -162,9 +222,9 @@ void fs_fwrite(fdesc_t fd, u8 ch)
             return;
         }
 
-    if (strpbrk(mode, "wa"))
+    if (strchr("WA", hdl->mode))
     {
-        //Append handling
+        //TODO: Append handling
     }
 
     if (fl_lastsector != FL_SECTOR((u8*)(&hdl->file->data)))

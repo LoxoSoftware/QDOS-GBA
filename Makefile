@@ -46,7 +46,8 @@ CXXFLAGS	:=	$(CFLAGS) -fno-rtti -fno-exceptions
 
 ASFLAGS	:=	-g $(ARCH)
 LDFLAGS	=	-g $(ARCH) -Wl,-Map,$(notdir $*.map),--print-memory-usage\
-		-Wl,--wrap=malloc,--wrap=calloc,--wrap=realloc,--wrap=free
+		-Wl,--wrap=malloc,--wrap=calloc,--wrap=realloc,--wrap=free\
+		-T $(CURDIR)/../ldscript
 
 #---------------------------------------------------------------------------------
 # any extra libraries we wish to link with the project

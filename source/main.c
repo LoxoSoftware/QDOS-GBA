@@ -42,6 +42,10 @@ ALIGN(16) const char save_type[16]= "FLASH1M_V420\0\0\0\0";
 
 int main()
 {
+	syscall_vector[0]= 0xE59F9000;	//	LDR R9, [PC] @isr_IRQReceiver
+	syscall_vector[1]= 0xE12FFF19;	//	BX  R9
+	syscall_vector[2]= (u32)isr_IRQReceiver;
+
 	display_init();
 	console_init();
 	console_colors(IVGA_BLACK, IVGA_GRAY, IVGA_RED);
@@ -76,6 +80,7 @@ int main()
 
 	console_clear();
 	console_printf("i\xb3 Flash identification: %p&n", fl_getid());
+	console_printf("i\xb3 Syscall vector is at %p&n", (u32)syscall_vector);
 	screen_wait_vsync();
 	console_drawbuffer();
 	if (firsttime)

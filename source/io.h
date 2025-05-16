@@ -26,21 +26,22 @@
 #include <string.h>
 #include <stdio.h>
 
-#define SRAM_MAX        0x00020000  //128k
-#define FILE_MAX_SECTS  128         //Maximum file size is limited to 128 KiB
-#define FS_SECTOR_SZ    1024
-#define FS_ROOTHEAD_SZ  24
-#define FS_INIT_SEQ     0x694200A5
-#define FS_FILEHEAD_SZ  24
-#define MAXALLOCS       ((FS_SECTOR_SZ-FS_ROOTHEAD_SZ)>>1)
-#define MAXFILECHUNK    (FS_SECTOR_SZ-FS_FILEHEAD_SZ)
+#define SRAM_MAX            0x00020000  //128k
+#define FILE_MAX_SECTS      128         //Maximum file size is limited to 128 KiB
+#define FS_SECTOR_SZ        1024
+#define FS_ROOTHEAD_SZ      24
+#define FS_INIT_SEQ         0x694200A5
+#define FS_FILEHEAD_SZ      24
+#define MAXALLOCS           ((FS_SECTOR_SZ-FS_ROOTHEAD_SZ)>>1)
+#define MAXFILECHUNK        (FS_SECTOR_SZ-FS_FILEHEAD_SZ)
 
-#define FS_FNAME_SZ     12
-#define FS_FTYPE_SZ     4
+#define FS_FNAME_SZ         12
+#define FS_FTYPE_SZ         4
 
-#define FS_MAX_FHANDLES 16
+#define FS_MAX_FHANDLES     16
+#define FS_ALLOC_DEFAULT    FS_SECTOR_SZ
 
-#define FL_AUTOSAVE_FAT true   //If set to false, use the "exit" command to save the FAT
+#define FL_AUTOSAVE_FAT     true   //If set to false, use the "exit" command to save the FAT
 
 typedef struct
 {

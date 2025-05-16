@@ -23,14 +23,11 @@
 #endif
 
 #define SYSCALL_TRIGGER         DMA0CNT=DMA_IRQ|DMA_ENABLE|DMA_IMMEDIATE;REG_DMA0CNT=0
-#define SYSCALL_ARGBASE         ((u8*)(EWRAM+EWRAM_SIZE-16))
-#define SYSCALL_ARGS            ((syscall_args_t*)SYSCALL_ARGBASE)
 
 #define SYSCALL_PRINT_MAXLEN    2048
 
 typedef u16 syscall_t;
-#define SCALL_CONSOLE_PRINT 1
-#define SCALL_CONSOLE_DRAW  2
+#define SCALL_IOCTL         2
 #define SCALL_OPEN          3
 #define SCALL_CLOSE         4
 #define SCALL_READ          5
@@ -44,7 +41,7 @@ typedef u16 syscall_t;
 #define SCALL_STATFS        13
 #define SCALL_CREAT         14
 #define SCALL_FTELL         15
-#define SCALL_FSFLUSH       16
+#define SCALL_SYNC          16
 
 typedef struct syscall_args_s
 {
@@ -60,7 +57,7 @@ bool dbg_syscall= true;
 #define syscall_throw(msg, args...)    console_printf("%p: "msg"&n",retptr,args)
 
 ARM_CODE
-void isr_IRQReceiver()
+volatile void isr_IRQReceiver()
 {
     //Handle syscalls
 
@@ -68,61 +65,41 @@ void isr_IRQReceiver()
     // draw_clear(c_yellow);
     // draw_clear(c_green);
 
-    register u32 retptr asm("lr");
+    register void*  retptr     asm("lr");
+    register int    function   asm("r0");
+    register int    arg0       asm("r1");
+    register int    arg1       asm("r2");
+    register int    arg2       asm("r3");
 
-    switch(SYSCALL_ARGS->function)
+    switch(function)
     {
-        case SCALL_CONSOLE_PRINT:
-            u16 len= 0;
-            char* strptr= (char*)(SYSCALL_ARGS->arg1);
-            do
-            {
-                if (strptr[len])
-                {
-                    len++;
-                    if (len > SYSCALL_PRINT_MAXLEN+1)
-                    {
-                        if (dbg_syscall)
-                            syscall_throw("refusing to print string longer than %d chars", SYSCALL_PRINT_MAXLEN);
-                        goto end_syscall_parse;
-                    }
-                }
-                else
-                    break;
-            }
-            while (len <= SYSCALL_PRINT_MAXLEN+1);
-            console_printf(strptr);
-            break;
-        case SCALL_CONSOLE_DRAW:
-            console_drawbuffer();
-            break;
         case SCALL_OPEN:
-            SYSCALL_ARGS->arg0= fs_fopen((char*)(SYSCALL_ARGS->arg1), (char)(SYSCALL_ARGS->arg0));
-            if ((s16)(SYSCALL_ARGS->arg0) < 0)
+            arg0= fs_fopen((char*)arg1, (char)arg0);
+            if ((s16)arg0 < 0)
                 syscall_throw("I/O error: %s", fs_error);
             if (dbg_syscall)
-                syscall_throw("fopen() returned %d", SYSCALL_ARGS->arg0);
+                syscall_throw("fopen() returned %d", arg0);
             break;
         case SCALL_CLOSE:
-            fs_fclose((fdesc_t)(SYSCALL_ARGS->arg0));
+            fs_fclose((fdesc_t)arg0);
             if (dbg_syscall)
-                syscall_throw("file #%d is now closed", (fdesc_t)(SYSCALL_ARGS->arg0));
+                syscall_throw("file #%d is now closed", (fdesc_t)arg0);
             break;
         case SCALL_READ:
-            SYSCALL_ARGS->arg0= fs_fread((fdesc_t)(SYSCALL_ARGS->arg0));
+            arg0= fs_fread((fdesc_t)arg0);
             break;
         case SCALL_WRITE:
-            fs_fwrite((fdesc_t)(SYSCALL_ARGS->arg0), (u8)(SYSCALL_ARGS->arg1));
+            fs_fwrite((fdesc_t)arg0, (u8)arg1);
             break;
         case SCALL_FSEEK:
-            fs_fseek((fdesc_t)(SYSCALL_ARGS->arg0), (u8)(SYSCALL_ARGS->arg1));
+            fs_fseek((fdesc_t)arg0, (u8)arg1);
             if (dbg_syscall)
-                syscall_throw("seek to %p of file #%d", (u8)(SYSCALL_ARGS->arg1), (fdesc_t)(SYSCALL_ARGS->arg0));
+                syscall_throw("seek to %p of file #%d", (u8)arg1, (fdesc_t)arg0);
             break;
         case SCALL_FTELL:
-            SYSCALL_ARGS->arg1= fs_ftell((fdesc_t)(SYSCALL_ARGS->arg0));
+            arg1= fs_ftell((fdesc_t)arg0);
             break;
-        case SCALL_FSFLUSH:
+        case SCALL_SYNC:
             if (dbg_syscall)
                 syscall_throw("Writing sector buffer to FLASH...", 0);
             fs_flush();
@@ -134,15 +111,15 @@ void isr_IRQReceiver()
         case SCALL_KILL:
         case SCALL_STATFS:
         case SCALL_CREAT:
-            syscall_throw("%d: function not implemented", SYSCALL_ARGS->function);
+            syscall_throw("%d: function not implemented", function);
             break;
         default:
             //Ignore
             if (dbg_syscall)
-                syscall_throw("%d: undefined syscall", SYSCALL_ARGS->function);
+                syscall_throw("%d: undefined syscall", function);
             break;
     }
-
-end_syscall_parse:
-    //memset(SYSCALL_ARGBASE, 0, 16);
 }
+
+__attribute__((section (".oscall")))
+u32 syscall_vector[3];

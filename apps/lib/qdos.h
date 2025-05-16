@@ -7,14 +7,10 @@
 
 int _start();
 
-#define FS_FNAME_SZ     12
-#define FS_FTYPE_SZ     4
+#define FS_FNAME_SZ         12
+#define FS_FTYPE_SZ         4
 
-#define SYSCALL_ARGBASE     ((u8*)(EWRAM_END-16))
-#define SYSCALL_ARGS        ((syscall_args_t*)SYSCALL_ARGBASE)
-
-#define SCALL_CONSOLE_PRINT 1
-#define SCALL_CONSOLE_DRAW  2
+#define SCALL_IOCTL         2
 #define SCALL_OPEN          3
 #define SCALL_CLOSE         4
 #define SCALL_READ          5
@@ -28,7 +24,7 @@ int _start();
 #define SCALL_STATFS        13
 #define SCALL_CREAT         14
 #define SCALL_FTELL         15
-#define SCALL_FSFLUSH       16
+#define SCALL_SYNC          16
 
 typedef struct syscall_args_s
 {
@@ -66,62 +62,37 @@ typedef struct
 
 typedef s16 fdesc_t;                //File descriptor
 
-#define syscall(fun) \
-    SYSCALL_ARGS->function= fun; \
-    REG_DMA0CNT=DMA_IRQ|DMA_ENABLE|DMA_IMMEDIATE; \
-    asm volatile ("NOP"); asm volatile ("NOP");
+int (*syscall)(int function, ...)= (void*)0x03007Fe0;
 
 void print(char* str)
 {
-    SYSCALL_ARGS->arg1= (u32)str;
-    syscall(SCALL_CONSOLE_PRINT);
+    asm volatile ("MOV R11,R11");
+    syscall(2, (u32)str);
 }
 
-void redraw() { syscall(SCALL_CONSOLE_DRAW); }
+void redraw()
+{ /*syscall(SCALL_CONSOLE_DRAW);*/ }
 
 fdesc_t fopen(char* fname, char mode)
-{
-    SYSCALL_ARGS->arg1= (u32)fname;
-    SYSCALL_ARGS->arg0= mode;
-    syscall(SCALL_OPEN);
-    return (fdesc_t)SYSCALL_ARGS->arg0;
-}
+{ return (fdesc_t)syscall(SCALL_OPEN, mode, (u32)fname); }
 
 void fclose(fdesc_t fd)
-{
-    SYSCALL_ARGS->arg0= fd;
-    syscall(SCALL_CLOSE);
-}
+{ syscall(SCALL_CLOSE, fd); }
 
 u8 fread(fdesc_t fd)
-{
-    SYSCALL_ARGS->arg0= fd;
-    syscall(SCALL_READ);
-    return (u8)SYSCALL_ARGS->arg0;
-}
+{ return (u8)syscall(SCALL_READ, fd); }
 
 void fwrite(fdesc_t fd, u8 ch)
-{
-    SYSCALL_ARGS->arg0= fd;
-    SYSCALL_ARGS->arg1= ch;
-    syscall(SCALL_WRITE);
-}
+{ syscall(SCALL_WRITE, fd, ch); }
 
 void fseek(fdesc_t fd, u32 pos)
-{
-    SYSCALL_ARGS->arg0= fd;
-    SYSCALL_ARGS->arg1= pos;
-    syscall(SCALL_FSEEK);
-}
+{ syscall(SCALL_FSEEK, fd, pos); }
 
 u32 ftell(fdesc_t fd)
-{
-    SYSCALL_ARGS->arg0= fd;
-    syscall(SCALL_FTELL);
-    return SYSCALL_ARGS->arg1;
-}
+{ return (u32)syscall(SCALL_FTELL, fd); }
 
-void flushfs() { syscall(SCALL_FSFLUSH); }
+void flushfs()
+{ syscall(SCALL_SYNC); }
 
 void _putchar(char ch)
 {
