@@ -10,7 +10,8 @@ int _start();
 #define FS_FNAME_SZ         12
 #define FS_FTYPE_SZ         4
 
-#define SCALL_IOCTL         2
+#define SCALL_CONSOLE_WRITE 1
+#define SCALL_CONSOLE_READ  2
 #define SCALL_OPEN          3
 #define SCALL_CLOSE         4
 #define SCALL_READ          5
@@ -62,16 +63,13 @@ typedef struct
 
 typedef s16 fdesc_t;                //File descriptor
 
-int (*syscall)(int function, ...)= (void*)0x03007Fe0;
+int (*syscall)(int function, ...)= (void*)0x03007FE0;
 
 void print(char* str)
-{
-    asm volatile ("MOV R11,R11");
-    syscall(2, (u32)str);
-}
+{ syscall(SCALL_CONSOLE_WRITE, (u32)str); }
 
 void redraw()
-{ /*syscall(SCALL_CONSOLE_DRAW);*/ }
+{ syscall(SCALL_CONSOLE_WRITE, (u32)"&r"); }
 
 fdesc_t fopen(char* fname, char mode)
 { return (fdesc_t)syscall(SCALL_OPEN, mode, (u32)fname); }

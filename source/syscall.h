@@ -27,7 +27,8 @@
 #define SYSCALL_PRINT_MAXLEN    2048
 
 typedef u16 syscall_t;
-#define SCALL_IOCTL         2
+#define SCALL_CONSOLE_WRITE 1
+#define SCALL_CONSOLE_READ  2
 #define SCALL_OPEN          3
 #define SCALL_CLOSE         4
 #define SCALL_READ          5
@@ -65,16 +66,40 @@ volatile void isr_IRQReceiver()
     // draw_clear(c_yellow);
     // draw_clear(c_green);
 
-    register void*  retptr     asm("lr");
-    register int    function   asm("r0");
-    register int    arg0       asm("r1");
-    register int    arg1       asm("r2");
-    register int    arg2       asm("r3");
+    register int r_lr asm("lr");
+    void* retptr= (void*)r_lr;
+    register int r_r0 asm("r0");
+    int function= r_r0;
+    register int r_r1 asm("r1");
+    int arg0= r_r1;
+    register int r_r2 asm("r2");
+    int arg1= r_r2;
 
     switch(function)
     {
+        case SCALL_CONSOLE_WRITE:
+            u16 len= 0;
+            char* strptr= (char*)arg0;
+            do
+            {
+                if (strptr[len])
+                {
+                    len++;
+                    if (len > SYSCALL_PRINT_MAXLEN+1)
+                    {
+                        if (dbg_syscall)
+                            syscall_throw("refusing to print string longer than %d chars", SYSCALL_PRINT_MAXLEN);
+                        break;
+                    }
+                }
+                else
+                    break;
+            }
+            while (len <= SYSCALL_PRINT_MAXLEN+1);
+                console_printf(strptr);
+            break;
         case SCALL_OPEN:
-            arg0= fs_fopen((char*)arg1, (char)arg0);
+            arg0= fs_fopen((char*)arg0, (char)arg1);
             if ((s16)arg0 < 0)
                 syscall_throw("I/O error: %s", fs_error);
             if (dbg_syscall)
@@ -103,6 +128,8 @@ volatile void isr_IRQReceiver()
             if (dbg_syscall)
                 syscall_throw("Writing sector buffer to FLASH...", 0);
             fs_flush();
+            break;
+        case SCALL_CONSOLE_READ:
             break;
         case SCALL_RENAME:
         case SCALL_UNLINK:
