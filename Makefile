@@ -37,7 +37,7 @@ ARCH	:=	-mthumb -mthumb-interwork
 CFLAGS	:=	-g0 -Wall -O2\
 		-mcpu=arm7tdmi -mtune=arm7tdmi\
  		-fomit-frame-pointer\
-		-ffast-math \
+		-ffast-math -Wno-varargs \
 		$(ARCH) 
 
 CFLAGS	+=	$(INCLUDE)
