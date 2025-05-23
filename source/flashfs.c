@@ -155,6 +155,8 @@ void fl_write8(u8* ptr, u8 value)
         if ((u32)ptr-(u32)&fl_secbuf >= 4096)
             fl_erase4k(fl_lastsector+1);
     }
+    else
+        fl_lastsector= ofs>>12;
 
     fl_secbuf[ofs&0x0FFF]= value;
 }
@@ -331,7 +333,7 @@ void fs_saveFlash()
     fl_erase4k(FL_SECTOR(fs_root->secmap));
     for (int f=0; f<MAXALLOCS; f++)
         write16(fl_secbuf+FL_BUFIND(fs_root->secmap)+f*sizeof(u16), fs_secmap[f]);
-    fl_restore4k(FL_SECTOR(fs_root->secmap));
+    fl_restore4k();
 }
 
 void fs_loadFlash()
@@ -346,7 +348,7 @@ void fs_format()
     fl_eraseALL();
     fl_erase4k(0);
     write32(fs_root, FS_INIT_SEQ);
-    fl_restore4k(0);
+    fl_restore4k();
 }
 
 int fs_alloc(u32 blocksize)
