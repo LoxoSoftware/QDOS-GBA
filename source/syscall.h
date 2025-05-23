@@ -74,6 +74,8 @@ volatile void isr_IRQReceiver()
     int arg0= r_r1;
     register int r_r2 asm("r2");
     int arg1= r_r2;
+    register int r_r3 asm("r3");
+    int arg2= r_r3;
 
     switch(function)
     {
@@ -111,10 +113,10 @@ volatile void isr_IRQReceiver()
                 syscall_throw("file #%d is now closed", (fdesc_t)arg0);
             break;
         case SCALL_READ:
-            arg0= fs_fread((fdesc_t)arg0);
+            arg0= fs_fread((fdesc_t)arg0, (u8*)arg1, arg2);
             break;
         case SCALL_WRITE:
-            fs_fwrite((fdesc_t)arg0, (u8)arg1);
+            fs_fwrite((fdesc_t)arg0, (u8*)arg1, arg2);
             break;
         case SCALL_FSEEK:
             fs_fseek((fdesc_t)arg0, (u8)arg1);

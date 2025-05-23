@@ -164,37 +164,47 @@ void fs_fclose(fdesc_t fd)
 }
 
 IWRAM_CODE ARM_CODE
-u8 fs_fread(fdesc_t fd)
+u32 fs_fread(fdesc_t fd, u8* buffer, u32 size)
 {
+    //Returns the number of bytes read
     //TODO: Fix reliance on continous file access
 
     fhandle_t* hdl= fd_get_handle(fd);
-    if (!hdl) return 0x69;
+    if (!hdl) return 0;
+
+    u32 file_size= read32(&hdl->file->size);
 
     if (!hdl->file)
     {
         sprintf(fs_error, "READ: Null file pointer");
-        return 0x69;
+        return 0;
     }
 
     if (!strchr("rRwWaA", hdl->mode))
     {
         sprintf(fs_error, "READ: File is not open for reading");
-        return 0x00;
-    }
-    if (hdl->cursor >= read32(&hdl->file->size))
-    {
-        hdl->cursor= read32(&hdl->file->size);
-        sprintf(fs_error, "READ: EOF reached");
-        return '\0';
+        return 0;
     }
 
-    hdl->cursor++;
-    return ((char*)(&hdl->file->data))[hdl->cursor-1];
+    for (u32 i=0; i<size; i++)
+    {
+        if (hdl->cursor >= file_size)
+        {
+            hdl->cursor= file_size;
+            sprintf(fs_error, "READ: EOF reached");
+            return file_size;
+        }
+
+        buffer[i]= ((char*)(&hdl->file->data))[hdl->cursor];
+
+        hdl->cursor++;
+    }
+
+    return size;
 }
 
 IWRAM_CODE ARM_CODE
-void fs_fwrite(fdesc_t fd, u8 ch)
+void fs_fwrite(fdesc_t fd, u8* buffer, u32 size)
 {
     //TODO: Fix reliance on continous file access
     //WARNING: Flush the buffer when done! use fl_flush()
@@ -202,40 +212,40 @@ void fs_fwrite(fdesc_t fd, u8 ch)
     fhandle_t* hdl= fd_get_handle(fd);
     if (!hdl) return;
 
+    bool append_mode= strchr("Aa", hdl->mode);
+
     if (!hdl->file)
     {
         sprintf(fs_error, "WRITE: Null file pointer");
         return;
     }
 
-    if (!strchr("wWaA", hdl->mode))
+    if (!strchr("WwAa", hdl->mode))
     {
         sprintf(fs_error, "WRITE: File is not open for writing");
         return;
     }
 
-    if (strchr("WA", hdl->mode))
-        if (hdl->cursor >= read32(&hdl->file->size))
+    if (append_mode)
+    {
+        //TODO: Append mode
+    }
+    else
+    {
+        //Normal mode
+        for (u32 i=0; i<size; i++)
         {
-            hdl->cursor= read32(&hdl->file->size);
-            sprintf(fs_error, "WRITE: EOF reached");
-            return;
+            if (hdl->cursor >= read32(&hdl->file->size))
+            {
+                hdl->cursor= read32(&hdl->file->size);
+                sprintf(fs_error, "WRITE: EOF reached");
+                break;
+            }
+
+            hdl->cursor++;
+            fl_write8(&((u8*)(&hdl->file->data))[hdl->cursor-1], buffer[i]);
         }
-
-    if (strchr("WA", hdl->mode))
-    {
-        //TODO: Append handling
     }
-
-    if (fl_lastsector != FL_SECTOR((u8*)(&hdl->file->data)))
-    {
-        if (fl_lastsector != 255)
-            fl_restore4k(); //Just in case
-        fl_get4k(FL_SECTOR(&hdl->file->data));
-    }
-
-    hdl->cursor++;
-    fl_write8(&((u8*)(&hdl->file->data))[hdl->cursor-1], ch);
 }
 
 void fs_fseek(fdesc_t fd, u32 pos)

@@ -180,18 +180,18 @@ u8 fs_check();
 
 /// I/O operations ///
 
-fhandle_t* fd_get_handle(fdesc_t);
+fhandle_t* fd_get_handle(fdesc_t fd);
 
-fdesc_t fs_fopen(char*, char);
+fdesc_t fs_fopen(char* fname, char mode);
 
-void fs_fclose(fdesc_t);
+void fs_fclose(fdesc_t fd);
 
-u8 fs_fread(fdesc_t);
+u32 fs_fread(fdesc_t fd, u8* buffer, u32 size);
 
-void fs_fwrite(fdesc_t, u8);
+void fs_fwrite(fdesc_t fd, u8* buffer, u32 size);
 
-void fs_fseek(fdesc_t, u32);
+void fs_fseek(fdesc_t fd, u32 pos);
 
-u32 fs_ftell(fdesc_t);
+u32 fs_ftell(fdesc_t fd);
 
 #endif

@@ -114,7 +114,7 @@ void fcmd_rm()
     }
 }
 
-void fcmd_fdisk__kint1()
+void fcmd_fdisk__kint1(char*)
 {
     if (strcmp(kbstring, "y") && strcmp(kbstring, "Y"))
         console_printf("&nCanceled.&n");
@@ -154,22 +154,15 @@ void fcmd_fread()
         return;
     }
 
-    char chstr[2]= { '\0', '\0' };
-
-    if (!fs_ftell(fd))
-    {
-        fs_fclose(fd);
+    u8* strptr= (u8*)malloc(fs_ftell(fd));
+    if (!strptr)
         return;
-    }
 
-    do
-    {
-        chstr[0]= fs_fread(fd);
-        console_printf(chstr);
-    }
-    while (fs_ftell(fd));
+    fs_fread(fd, (u8*)strptr, 2048);
+    console_printf((char*)strptr);
 
     fs_fclose(fd);
+    free(strptr);
 }
 
 void fcmd_fwrite()
@@ -195,10 +188,12 @@ void fcmd_fwrite()
         return;
     }
 
+    file_t* fptr= fd_get_handle(fd)->file;
+
     u32 strsz= strlen(ARGV(2));
 
-    for (u32 i=0; i<strsz && fs_ftell(fd)>0; i++)
-        fs_fwrite(fd, ARGV(2)[i]);
+    fl_erase4k(FL_SECTOR(&fptr->data));
+    fs_fwrite(fd, (u8*)ARGV(2), strsz+1);
     fs_flush();
 
     fs_fclose(fd);
