@@ -72,7 +72,7 @@ void redraw()
 { syscall(SCALL_CONSOLE_WRITE, (u32)"&r"); }
 
 fdesc_t fopen(char* fname, char mode)
-{ return (fdesc_t)syscall(SCALL_OPEN, mode, (u32)fname); }
+{ return (fdesc_t)syscall(SCALL_OPEN, (u32)fname, mode); }
 
 void fclose(fdesc_t fd)
 { syscall(SCALL_CLOSE, fd); }
