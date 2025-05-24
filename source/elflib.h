@@ -259,7 +259,7 @@ void elf_runExecutable(Elf32_Ehdr* elf)
 
     char* new_argstring= (char*)tmi;
     char** new_argv= (char**)(new_argstring+argsz+1);
-    new_argv= (char**)((u32)new_argv+((u32)new_argv&3)); //Align new argv to 32 bit
+    new_argv= (char**)((u32)new_argv-((u32)new_argv&3)+4); //Align new argv to 32 bit
 
     __exe_copyArgs(new_argstring, new_argv);
 
