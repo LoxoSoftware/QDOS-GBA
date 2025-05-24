@@ -77,11 +77,11 @@ fdesc_t fopen(char* fname, char mode)
 void fclose(fdesc_t fd)
 { syscall(SCALL_CLOSE, fd); }
 
-u8 fread(fdesc_t fd)
-{ return (u8)syscall(SCALL_READ, fd); }
+u32 fread(fdesc_t fd, u8* buffer, u32 len)
+{ return (u8)syscall(SCALL_READ, fd, (u32)buffer, len); }
 
-void fwrite(fdesc_t fd, u8 ch)
-{ syscall(SCALL_WRITE, fd, ch); }
+void fwrite(fdesc_t fd, u8* buffer, u32 len)
+{ syscall(SCALL_WRITE, fd, (u32)buffer, len); }
 
 void fseek(fdesc_t fd, u32 pos)
 { syscall(SCALL_FSEEK, fd, pos); }
