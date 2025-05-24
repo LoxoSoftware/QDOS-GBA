@@ -93,14 +93,20 @@ u32 __console_frames= 0;
 bool __console_initialized= false;
 int __console_yoffset= 0;
 int __console_curtoggle= 0;
+bool __console_curvisible= true;
 
 void console_idle()
 {
 	//Run every frame
 
-	OAM[__console_cur_sprind].attr0= ATTR0_COLOR_16|OBJ_Y((__console_irow*__console_charh)-__console_yoffset),
-	OAM[__console_cur_sprind].attr1= OBJ_X(__console_icolumn*__console_charw),
-	OAM[__console_cur_sprind].attr2= OBJ_CHAR(0x200+((__console_frames&32)>>5))|ATTR2_PALETTE(__console_cur_palind>>4);
+	if (__console_curvisible)
+	{
+		OAM[__console_cur_sprind].attr0= ATTR0_COLOR_16|OBJ_Y((__console_irow*__console_charh)-__console_yoffset),
+		OAM[__console_cur_sprind].attr1= OBJ_X(__console_icolumn*__console_charw),
+		OAM[__console_cur_sprind].attr2= OBJ_CHAR(0x200+((__console_frames&32)>>5))|ATTR2_PALETTE(__console_cur_palind>>4);
+	}
+	else
+		OAM[__console_cur_sprind].attr0= ATTR0_DISABLED;
 
 	__console_frames--;
 }
@@ -234,7 +240,11 @@ int console_ansiiparse(char* str)
 	//NOTE: str begins from after the prefix ('&[')
 	//Returns length of the escape sequence
 
-	int first_alpha= strspn(str, "0123456789");
+	int first_alpha;
+	if (str[0] == '?')
+		first_alpha= strspn(str+1, "0123456789");
+	else
+		first_alpha= strspn(str, "0123456789");
 	char* first_alpha_ptr= "\0";
 	if (first_alpha)
 		first_alpha_ptr= &str[first_alpha];
@@ -294,6 +304,17 @@ int console_ansiiparse(char* str)
 		goto __console_ansiparse_finish;
 	}
 
+	///// Extra cursor commands /////
+
+	if (str[0] == '?')
+	{
+		if (str[1] == '2' && str[2] == '5' && str[3] == 'l')
+			__console_curvisible= false;
+		if (str[1] == '2' && str[2] == '5' && str[3] == 'h')
+			__console_curvisible= true;
+		goto __console_ansiparse_finish;
+	}
+
 	///// Erase commands /////
 
 	if (str[0] == 'K')
@@ -340,7 +361,7 @@ int console_ansiiparse(char* str)
 	return 0;
 
 __console_ansiparse_finish:
-	return escape_pfx_len+first_alpha;
+	return escape_pfx_len+first_alpha+((str[0] == '?')? 1 : 0);
 }
 
 IWRAM_CODE ARM_CODE
