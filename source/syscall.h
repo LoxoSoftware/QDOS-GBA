@@ -43,6 +43,8 @@ typedef u16 syscall_t;
 #define SCALL_CREAT         14
 #define SCALL_FTELL         15
 #define SCALL_SYNC          16
+#define SCALL_MMAP          17
+#define SCALL_MUNMAP        18
 
 typedef struct syscall_args_s
 {
@@ -58,7 +60,7 @@ bool dbg_syscall= true;
 #define syscall_throw(msg, args...)    console_printf("%p: "msg"&n",retptr,args)
 
 ARM_CODE
-volatile void isr_IRQReceiver()
+volatile int isr_IRQReceiver()
 {
     //Handle syscalls
 
@@ -101,11 +103,14 @@ volatile void isr_IRQReceiver()
                 console_printf(strptr);
             break;
         case SCALL_OPEN:
+            if (dbg_syscall)
+                syscall_throw("Opening file \"%s\" with mode '%c'&r", (char*)arg0, (char)arg1);
             arg0= fs_fopen((char*)arg0, (char)arg1);
             if ((s16)arg0 < 0)
-                syscall_throw("I/O error: %s", fs_error);
+                syscall_throw("I/O error: %s&r", fs_error);
             if (dbg_syscall)
                 syscall_throw("fopen() returned %d", arg0);
+            return arg0;
             break;
         case SCALL_CLOSE:
             fs_fclose((fdesc_t)arg0);
@@ -128,10 +133,21 @@ volatile void isr_IRQReceiver()
             break;
         case SCALL_SYNC:
             if (dbg_syscall)
-                syscall_throw("Writing sector buffer to FLASH...", 0);
+                syscall_throw("Writing sector buffer to FLASH...&r", 0);
             fs_flush();
             break;
         case SCALL_CONSOLE_READ:
+            break;
+        case SCALL_MMAP:
+            if (dbg_syscall)
+                syscall_throw("MMAP: Trying to allocate %d bytes...&r", arg0);
+            arg0= (int)malloc((size_t)arg0);
+            return (int)arg0;
+            break;
+        case SCALL_MUNMAP:
+            if (dbg_syscall)
+                syscall_throw("MUNMAP: Trying to free address %p...&r", (void*)arg0);
+            free((void*)arg0);
             break;
         case SCALL_RENAME:
         case SCALL_UNLINK:
@@ -148,6 +164,8 @@ volatile void isr_IRQReceiver()
                 syscall_throw("%d: undefined syscall", function);
             break;
     }
+
+    return 0;
 }
 
 __attribute__((section (".oscall")))

@@ -26,6 +26,8 @@ int _start();
 #define SCALL_CREAT         14
 #define SCALL_FTELL         15
 #define SCALL_SYNC          16
+#define SCALL_MMAP          17
+#define SCALL_MUNMAP        18
 
 typedef struct syscall_args_s
 {
@@ -91,6 +93,12 @@ u32 ftell(fdesc_t fd)
 
 void flushfs()
 { syscall(SCALL_SYNC); }
+
+void* malloc(u32 size)
+{ return (void*)syscall(SCALL_MMAP, size); }
+
+void free(void* ptr)
+{ syscall(SCALL_MUNMAP, (u32)ptr); }
 
 void _putchar(char ch)
 {

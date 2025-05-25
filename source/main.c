@@ -52,8 +52,8 @@ int main()
 
 	//Setup hardware interrupt for syscalls
 	//	(sadly I can't use software interrupts)
-	irqSet(IRQ_DMA0, isr_IRQReceiver);
-	irqEnable(IRQ_DMA0);
+	//irqSet(IRQ_DMA0, isr_IRQReceiver);
+	//irqEnable(IRQ_DMA0);
 	//Setup hardware interrupt for virtual keyboard
 	//REG_KEYCNT= KEY_L | KEY_R | KEYIRQ_ENABLE | KEYIRQ_AND;
 	//irqSet(IRQ_KEYPAD, isr_vkeyboard);
