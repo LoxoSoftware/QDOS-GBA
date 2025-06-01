@@ -34,7 +34,7 @@
 //#include "syscall.h"
 #include "tools.h"
 #define OS_NAME 		"QDOS"
-#define OS_VERSION 		"0.0.11.0"
+#define OS_VERSION 		"0.0.12.0"
 
 #define ROMFS_DOMAIN    romfs, romfs_sz/sizeof(file_t*)
 
