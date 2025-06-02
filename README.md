@@ -16,7 +16,7 @@ The main goal is to provide a simple hardware abstraction layer that allows prog
 - Some degree of customizability
 Also, as a bonus I'd like to use the GBA link functionality to connect external peripherals such as mouse and keyboard and exchange files between systems.
 
-## Status: moving towards milestone 2
+## Project status
 Currently the project can execute code (not preemptively) and it's very insecure.
 Right now what the OS can do is very limited, but it's a start.
 A program can:
@@ -24,19 +24,25 @@ A program can:
 - Open, Close, Read, Write files
 - Read and write everything the OS can
 
-## TODO (to reach milestone 2)
-- Implement more systemcalls
-- Console escape sequences to control the text
-- Multicolor terminal output
-- Enhance standard allocator function with wrappers
+## TODO (to reach milestone 3)
+- Automate process to include programs at compile time
+- Include builtin programs
+- Finally fix reliance on countinous data access for I/O operations to work with files larger than one sector
 
 ## TODO (in the future)
+- Implement functional system calls
+- Transition builtin tools to a new build system
+- Improve and enhance builtin tools
+- Implement a dynamic library system
+- Directories
+- Process pre-emption
 - Multitasking system
 - Improve keyboard and terminal
 - Write documentation
+- Actually implement support for multibank flashes
 
 ## Building the project
-Please make sure that you have [DevkitPRO](https://devkitpro.org/wiki/Getting_Started) properly configured and its GBA toolchain installed.
+Please make sure that you have [DevkitPro](https://devkitpro.org/wiki/Getting_Started) properly configured and its GBA toolchain installed.
 To build, simply navigate to the root directory of this project and run `make`.
 You will now have a .gba ROM.
 
