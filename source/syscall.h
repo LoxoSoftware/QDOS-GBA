@@ -168,5 +168,4 @@ volatile int isr_IRQReceiver()
     return 0;
 }
 
-__attribute__((section (".oscall")))
-u32 syscall_vector[3];
+u32* syscall_vector= (u32*)0x03007FE0;
