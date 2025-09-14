@@ -170,7 +170,7 @@ void execute_command(char* cmd)
                 {
                     console_printf(" ");
                     for (int iix= 0; iix<8; iix++)
-                        console_printf(".");
+                        console_printc(*(u8*)(ix-8+iix));
                     console_newline();
                 }
             }
@@ -180,6 +180,7 @@ void execute_command(char* cmd)
     if (!strcmp(cmdtok[0],"."))
     {
         u8* addr= NULL;
+        u8 val;
         u32 size= 1;
         if (tokc==1)
         {
@@ -194,15 +195,30 @@ void execute_command(char* cmd)
         if (tokc==3)
         {
             addr= (u8*)strtol(cmdtok[1],NULL,16);
-            *addr= (u8)strtol(cmdtok[2],NULL,16);
+            val= (u8)strtol(cmdtok[2],NULL,16);;
+            if (!fs_in_domain(addr))
+                *addr= val;
+            else
+            {
+                fl_write8(addr, val);
+                fl_restore4k();
+            }
             console_printf("%x&n", *addr);
         }
         if (tokc>3)
         {
             size= (u32)strtol(cmdtok[3],NULL,16);
             addr= (u8*)strtol(cmdtok[1],NULL,16);
-            u8 val= (u8)strtol(cmdtok[2],NULL,16);
-            memset(addr,val,size);
+            val= (u8)strtol(cmdtok[2],NULL,16);
+            fl_get4k(FL_SECTOR(addr));
+            for (int i=0; i<size; i++)
+            {
+                if (!fs_in_domain(addr))
+                    addr[i]= val;
+                else
+                    fl_write8(addr+i, val);
+            }
+            fl_restore4k();
             console_printf("Filled %d bytes&n",size);
         }
     }
