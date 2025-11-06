@@ -20,79 +20,113 @@
 
 #include "io.h"
 
+#define IO_DEBUG
+
+#ifdef IO_DEBUG
+void console_printf(char*, ...);
+void console_drawbuffer();
+#endif
+
 u32         sram_size= SRAM_MAX;
 u8          fl_prevbank= 255;
-u8          fl_lastsector= 255;
-u8          fl_secbuf[4096];
+u16         fl_lastsector= (u16)-1;
+#if FL_SECTOR_BUF_PTR < 0
+u8          fl_secbuf[FL_SECTOR_SZ];
+#else
+u8*         fl_secbuf= (u8*)(FL_SECTOR_BUF_PTR);
+#endif
 
 u16         fs_secmap[MAXALLOCS];
-fsroot_t*   fs_root= (fsroot_t*)SRAM;
+fsroot_t*   fs_root= (fsroot_t*)FS_DOMAIN;
 
 fhandle_t*  fs_handles[FS_MAX_FHANDLES];
 char        fs_error[128];
 
-inline void mdelay(int delay)
+IWRAM_CODE THUMB_CODE
+void mdelay(int delay)
 {
     for (int i=0; i<delay; i++)
         asm volatile ("MOV R11,R11");
 }
 
-inline void fl_wspoke(u16 offset, u8 val)
+IWRAM_CODE THUMB_CODE
+void fl_wspoke(u32 offset, u8 val)
 {
     mdelay(8);
-    *(u8*)(SRAM+offset)= val;
+    *(u8*)(FL_DOMAIN+offset)= val;
 }
 
+IWRAM_CODE THUMB_CODE
 u16 fl_getid()
 {
+    REG_IME= 0;
     u16 dat= 0x0000;
-    fl_wspoke(0x5555, 0xAA);
-    fl_wspoke(0x2AAA, 0x55);
-    fl_wspoke(0x5555, 0x90);
-    dat= (((u8*)SRAM)[1]<<8)+((u8*)SRAM)[0];
-    fl_wspoke(0x5555, 0xAA);
-    fl_wspoke(0x2AAA, 0x55);
-    fl_wspoke(0x5555, 0xF0);
+    fl_wspoke(FL_MAGIC1_ADDR, FL_MAGIC1_DATA);
+    fl_wspoke(FL_MAGIC2_ADDR, FL_MAGIC2_DATA);
+    fl_wspoke(FL_MAGIC1_ADDR, 0x90);
+    dat= (((u8*)FL_DOMAIN)[1]<<8)+((u8*)FL_DOMAIN)[0];
+    fl_wspoke(FL_MAGIC1_ADDR, FL_MAGIC1_DATA);
+    fl_wspoke(FL_MAGIC2_ADDR, FL_MAGIC2_DATA);
+    fl_wspoke(FL_MAGIC1_ADDR, 0xF0);
+    mdelay(100);
+    REG_IME= 1;
     return dat;
 }
 
+IWRAM_CODE THUMB_CODE
 void fl_selbank(u8 bank)
 {
-    //Select the bank in the flash
-    fl_wspoke(0x5555, 0xAA);
-    fl_wspoke(0x2AAA, 0x55);
-    fl_wspoke(0x5555, 0xB0);
+    return;
+    REG_IME= 0;
+    fl_wspoke(FL_MAGIC1_ADDR, FL_MAGIC1_DATA);
+    fl_wspoke(FL_MAGIC2_ADDR, FL_MAGIC2_DATA);
+    fl_wspoke(FL_MAGIC1_ADDR, 0xB0);
     fl_wspoke(0x0000, bank);
     fl_prevbank = bank;
+    mdelay(100);
+    REG_IME= 1;
 }
 
+IWRAM_CODE THUMB_CODE
 void fl_eraseALL()
 {
-    fl_wspoke(0x5555, 0xAA);
-    fl_wspoke(0x2AAA, 0x55);
-    fl_wspoke(0x5555, 0x80);
-    fl_wspoke(0x5555, 0xAA);
-    fl_wspoke(0x2AAA, 0x55);
-    fl_wspoke(0x5555, 0x10);
+    REG_IME= 0;
+    fl_wspoke(FL_MAGIC1_ADDR, FL_MAGIC1_DATA);
+    fl_wspoke(FL_MAGIC2_ADDR, FL_MAGIC2_DATA);
+    fl_wspoke(FL_MAGIC1_ADDR, 0x80);
+    fl_wspoke(FL_MAGIC1_ADDR, FL_MAGIC1_DATA);
+    fl_wspoke(FL_MAGIC2_ADDR, FL_MAGIC2_DATA);
+    fl_wspoke(FL_MAGIC1_ADDR, 0x10);
     mdelay(1000);
+    REG_IME= 1;
 }
 
-void fl_drop4k(u8 sector)
+IWRAM_CODE THUMB_CODE
+void fl_drop4k(u16 sector)
 {
-    fl_wspoke(0x5555, 0xAA);
-    fl_wspoke(0x2AAA, 0x55);
-    fl_wspoke(0x5555, 0x80);
-    fl_wspoke(0x5555, 0xAA);
-    fl_wspoke(0x2AAA, 0x55);
-    fl_wspoke(sector*0x1000, 0x30);
-    mdelay(100);
+    REG_IME= 0;
+#ifdef IO_DEBUG
+    console_printf("FLASH: Erase sector 0x%x", sector);
+    console_drawbuffer();
+#endif
+    fl_wspoke(FL_MAGIC1_ADDR, FL_MAGIC1_DATA);
+    fl_wspoke(FL_MAGIC2_ADDR, FL_MAGIC2_DATA);
+    fl_wspoke(FL_MAGIC1_ADDR, 0x80);
+    fl_wspoke(FL_MAGIC1_ADDR, FL_MAGIC1_DATA);
+    fl_wspoke(FL_MAGIC2_ADDR, FL_MAGIC2_DATA);
+    fl_wspoke(sector*FL_SECTOR_SZ, 0x30);
+
+    while(*(u8*)(FL_DOMAIN+sector*FL_SECTOR_SZ) != 0xFF) ;
+
+    REG_IME= 1;
 }
 
-IWRAM_CODE ARM_CODE void fl_erase4k(u8 sector)
+IWRAM_CODE THUMB_CODE
+void fl_erase4k(u16 sector)
 {
     //Backup the sector before erasing it
-    for (int i=0; i<4096; i++)
-        fl_secbuf[i]= ((u8*)SRAM)[sector*0x1000+i];
+    for (int i=0; i<FL_SECTOR_SZ; i++)
+        fl_secbuf[i]= ((u8*)FS_DOMAIN)[sector*FL_SECTOR_SZ+i];
     //Now erase it
     fl_drop4k(sector);
     fl_lastsector= sector;
@@ -100,36 +134,40 @@ IWRAM_CODE ARM_CODE void fl_erase4k(u8 sector)
     //      instead of directly manipulating the flash
 }
 
-IWRAM_CODE ARM_CODE void fl_get4k(u8 sector)
+IWRAM_CODE THUMB_CODE
+void fl_get4k(u16 sector)
 {
-    for (int i=0; i<4096; i++)
-        fl_secbuf[i]= ((u8*)SRAM)[sector*0x1000+i];
+    for (int i=0; i<FL_SECTOR_SZ; i++)
+        fl_secbuf[i]= ((u8*)FS_DOMAIN)[sector*FL_SECTOR_SZ+i];
     fl_lastsector= sector;
 }
 
-IWRAM_CODE ARM_CODE
+IWRAM_CODE THUMB_CODE
 void fl_restore4k()
 {
     fl_drop4k(fl_lastsector);
-    for (int i=0; i<4096; i++)
-        fl_writeDirect(fl_lastsector*0x1000+i, fl_secbuf[i]);
+    for (int i=0; i<FL_SECTOR_SZ; i++)
+        fl_writeDirect(fl_lastsector*FL_SECTOR_SZ+i, fl_secbuf[i]);
 }
 
-IWRAM_CODE ARM_CODE
+IWRAM_CODE THUMB_CODE
 void fl_writeDirect(u32 ofs, u8 value)
 {
+    REG_IME= 0;
     if (ofs>>16 != fl_prevbank)
-        fl_selbank((ofs-SRAM)>>16);
+        fl_selbank((ofs-FL_DOMAIN)>>16);
 
-    fl_wspoke(0x5555, 0xAA);
-    fl_wspoke(0x2AAA, 0x55);
-    fl_wspoke(0x5555, 0xA0);
-    *(u8*)(SRAM+ofs)= value;
+    fl_wspoke(FL_MAGIC1_ADDR, FL_MAGIC1_DATA);
+    fl_wspoke(FL_MAGIC2_ADDR, FL_MAGIC2_DATA);
+    fl_wspoke(FL_MAGIC1_ADDR, 0xA0);
+    fl_wspoke(ofs, value);
 
-    while(*(u8*)(SRAM+ofs) != value) ;
+    //while(*(u8*)(FL_DOMAIN+ofs) != value) ;
+    mdelay(10);
+    REG_IME= 1;
 }
 
-IWRAM_CODE ARM_CODE
+IWRAM_CODE THUMB_CODE
 void fl_write8(u8* ptr, u8 value)
 {
     //NOTE: Does not write directly to flash, writes to the buffer
@@ -138,7 +176,7 @@ void fl_write8(u8* ptr, u8 value)
     //              fl_erase4k(FL_SECTOR(write_address))  and
     //         remeber to flush the buffer when done!! use fl_restore4k()
 
-    u32 ofs= (u32)ptr-SRAM;
+    u32 ofs= (u32)ptr-FL_DOMAIN;
 
     if (ofs < 0 && ofs >= SRAM_MAX)
         return; //Pointer out of bounds
@@ -146,25 +184,25 @@ void fl_write8(u8* ptr, u8 value)
     if (ofs>>16 != fl_prevbank)
         fl_selbank(ofs>>16);
 
-    if (ofs < 0x1000*fl_lastsector || ofs >= 0x1000*(fl_lastsector+1))
+    if (ofs < FL_SECTOR_SZ*fl_lastsector || ofs >= FL_SECTOR_SZ*(fl_lastsector+1))
     {
         //Need to write to another flash sector
         fl_restore4k();
         if ((u32)ptr-(u32)&fl_secbuf < 0)
             fl_erase4k(fl_lastsector-1);
-        if ((u32)ptr-(u32)&fl_secbuf >= 4096)
+        if ((u32)ptr-(u32)&fl_secbuf >= FL_SECTOR_SZ)
             fl_erase4k(fl_lastsector+1);
     }
     else
-        fl_lastsector= ofs>>12;
+        fl_lastsector= ofs>>FL_SECTOR_SZ_BS;
 
-    fl_secbuf[ofs&0x0FFF]= value;
+    fl_secbuf[ofs&(FL_SECTOR_SZ-1)]= value;
 }
 
-IWRAM_CODE ARM_CODE
+IWRAM_CODE THUMB_CODE
 u8 fl_read8(u8* ptr)
 {
-    u32 ofs= (u32)ptr-SRAM;
+    u32 ofs= (u32)ptr-FS_DOMAIN;
 
     if (ofs < 0 && ofs >= SRAM_MAX)
         return 0x0069; //Pointer out of bounds
@@ -172,14 +210,14 @@ u8 fl_read8(u8* ptr)
     if (ofs>>16 != fl_prevbank)
         fl_selbank(ofs>>16);
 
-    if (ofs < 0x1000*fl_lastsector || ofs >= 0x1000*(fl_lastsector+1) || fl_lastsector == 255)
+    if (ofs < FL_SECTOR_SZ*fl_lastsector || ofs >= FL_SECTOR_SZ*(fl_lastsector+1) || fl_lastsector == (u16)-1)
     {
         //Requested address is not stored in the buffer, so get the byte directly from flash
         //Caching a new sector may not probably be worth it for the performance gained
-        return ((u8*)SRAM)[ofs&0xFFFF];
+        return ((u8*)FS_DOMAIN)[ofs&0xFFFF];
     }
     else
-    return fl_secbuf[ofs&0x0FFF];
+    return fl_secbuf[ofs&(FL_SECTOR_SZ-1)];
 }
 
 inline u32 fl_read32(u8* ptr)
@@ -320,7 +358,7 @@ void fs_init()
     //Only initializes the driver's variables,
     //  it is non destructive
 
-    memset(fl_secbuf, 0xFF, 4096);
+    memset(fl_secbuf, 0xFF, FL_SECTOR_SZ);
     memset((u8*)fs_secmap, 0xFF, sizeof(fs_secmap));
     memset(&((*fs_handles)->mode), '\0', sizeof(fhandle_t));
 
@@ -345,8 +383,9 @@ void fs_loadFlash()
 
 void fs_format()
 {
-    fl_eraseALL();
-    fl_erase4k(0);
+    //fl_eraseALL();
+    fl_drop4k(FL_SECTOR(fs_root));
+    fl_get4k(FL_SECTOR(fs_root));
     write32(fs_root, FS_INIT_SEQ);
     fl_restore4k();
 }

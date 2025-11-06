@@ -26,6 +26,23 @@
 #include <string.h>
 #include <stdio.h>
 
+#define FL_DOMAIN           0x08000000              //Where the writable backup medium starts at
+#define FS_DOMAIN           0x08F80000              //Where we want to write the data
+#define FL_SECTOR_SZ_BS     17                      //Default is 12 (bit shift of sector size)
+#define FL_SECTOR_SZ        (1<<FL_SECTOR_SZ_BS)    //Default is 0x1000
+#define FL_SECTOR_BUF_PTR   0x0E000000              //Location of sector buffer, -1 = Static alloc in IWRAM (default)
+
+#if FL_DOMAIN >= 0x08000000
+#define FL_16BIT_ACCESS     true
+#else
+#define FL_16BIT_ACCESS     false
+#endif
+
+#define FL_MAGIC1_ADDR      0x0AAA                  //Default is 0x5555
+#define FL_MAGIC1_DATA      0xA9                    //Default is 0xAA
+#define FL_MAGIC2_ADDR      0x0555                  //Default is 0x2AAA
+#define FL_MAGIC2_DATA      0x56                    //Default is 0x55
+
 #define SRAM_MAX            0x00020000  //128k
 #define FILE_MAX_SECTS      128         //Maximum file size is limited to 128 KiB
 #define FS_SECTOR_SZ        1024
@@ -86,19 +103,23 @@ extern fsroot_t*   fs_root;
 /// Flash driving ///
 
 //Get flash sector from address
-#define FL_SECTOR(addr)         (((u32)addr-SRAM)>>12)
+#define FL_SECTOR(addr)         (((u32)addr-FL_DOMAIN)>>FL_SECTOR_SZ_BS)
 
 //Get byte index in the secbuf from address
-#define FL_BUFIND(addr)         (((u32)addr-SRAM)&0x0FFF)
+#define FL_BUFIND(addr)         (((u32)addr-FS_DOMAIN)&(FL_SECTOR_SZ-1))
 
 //Get filesystem block index from file address
 #define FS_PTRBLOCKID(ptr)      (((u32)ptr-(u32)fs_root)/FS_SECTOR_SZ-1)
 
 #define STRUCT_ARR(arr, index, type) ((type*)((u32)&arr+index*sizeof(type*)))
 
-extern u8 fl_prevbank;    //Last used FLASH bank
-extern u8 fl_lastsector;  //Last cached FLASH sector
-extern u8 fl_secbuf[];    //Sector cache
+extern u8  fl_prevbank;    //Last used FLASH bank
+extern u16 fl_lastsector;  //Last cached FLASH sector
+#if FL_SECTOR_BUF_PTR < 0
+extern u8 fl_secbuf[];     //Sector cache
+#else
+extern u8* fl_secbuf;
+#endif
 
 extern char fs_error[];
 
@@ -106,7 +127,7 @@ extern char fs_error[];
 void mdelay(int delay);
 
 //Poke data into flash with a delay
-void fl_wspoke(u16 offset, u8 val);
+void fl_wspoke(u32 offset, u8 val);
 
 u16 fl_getid();
 
@@ -115,9 +136,9 @@ void fl_selbank(u8 bank);
 void fl_eraseALL();
 
 //Flash sector operations
-void fl_drop4k(u8 sector);
-void fl_erase4k(u8 sector);
-void fl_get4k(u8 sector);
+void fl_drop4k(u16 sector);
+void fl_erase4k(u16 sector);
+void fl_get4k(u16 sector);
 void fl_restore4k();
 
 //Write a byte directly to flash
