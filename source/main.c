@@ -38,7 +38,7 @@
 
 #define ROMFS_DOMAIN    romfs, romfs_sz/sizeof(file_t*)
 
-ALIGN(16) const char save_type[16]= "FLASH1M_V420\0\0\0\0";
+ALIGN(16) const char save_type[16]= "FLASH1M_V103\0\0\0\0";
 
 int main()
 {
@@ -48,7 +48,7 @@ int main()
 
 	display_init();
 	console_init();
-	console_colors(IVGA_BLACK, IVGA_GRAY, IVGA_RED);
+	console_colors(IVGA_BLACK, IVGA_WHITE, IVGA_RED);
 
 	//Setup hardware interrupt for syscalls
 	//	(sadly I can't use software interrupts)
@@ -90,7 +90,8 @@ int main()
 	}
 	console_newline();
 	console_printf("    &[96mWelcome to %s &[36mversion %s&[0m&n",OS_NAME,OS_VERSION);
-	execute_command("m");
+	if (!firsttime)
+		execute_command("m");
 	console_drawbuffer();
 
 	u16 kd, kh;
